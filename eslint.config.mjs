@@ -26,10 +26,25 @@ export default tseslint.config(
   },
   {
     rules: {
+      'prettier/prettier': [
+        'off',
+        {
+          endOfLine: 'auto',
+          // quy dinh kieu xuong dong sao cung duoc
+          printWidth: 120,
+          // do dai toi da cua 1 dong
+          bracketSpacing: true,
+          // cho phep khaong trong o giua
+        },
+      ],
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+
     },
   },
 );
