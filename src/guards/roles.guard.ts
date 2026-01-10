@@ -7,7 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from 'src/constants/role.enum';
+import { UserRole } from 'src/modules/accounts/enums/user-role.enum';
 import { ROLES_KEY } from 'src/decorators/role.decorator';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
   // dung de lay metadata tu decorator
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -24,8 +24,8 @@ export class RolesGuard implements CanActivate {
     }
     const { user } = context.switchToHttp().getRequest();
     // lay user duoc gan tu auth.guard truoc do
-    if (!requiredRoles.some((role) => user.role?.includes(role)))
-      throw new HttpException('Forbidden resoure', HttpStatus.FORBIDDEN);
+    if (!user || !requiredRoles.includes(user.role as UserRole))
+      throw new HttpException('You do not have permission to access this resource', HttpStatus.FORBIDDEN);
     return true;
   }
 }
