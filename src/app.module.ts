@@ -8,6 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ResidentsModule } from './modules/residents/residents.module';
+import { BlocksModule } from './modules/blocks/blocks.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 
 @Module({
@@ -21,6 +22,7 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
     AccountsModule,
     AuthModule,
     ResidentsModule,
+    BlocksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
