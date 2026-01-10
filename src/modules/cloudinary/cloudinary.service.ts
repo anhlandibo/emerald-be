@@ -9,28 +9,30 @@ import * as streamifier from 'streamifier';
 
 @Injectable()
 export class CloudinaryService {
-    uploadFile(file: Express.Multer.File) {
-        return new Promise<CloudinaryResponse>((resolve, reject) => {
-            const uploadStream = cloudinary.uploader.upload_stream(
-                (error, result) => {
-                    if (error) return reject(error);
-                    resolve(result);
-                },
-            );
+  uploadFile(file: Express.Multer.File) {
+    return new Promise<CloudinaryResponse>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        },
+      );
 
-            streamifier.createReadStream(file.buffer).pipe(uploadStream);
-        });
-    }
+      streamifier.createReadStream(file.buffer).pipe(uploadStream);
+    });
+  }
 
-    async deleteFile(publicId: string) {
-        const response = await cloudinary.uploader.destroy(publicId) as { result: string }
-        const { result } = response
-        if (result !== "ok")
-            throw new HttpException(result, HttpStatus.BAD_REQUEST)
-        return result
-    }
+  async deleteFile(publicId: string) {
+    const response = (await cloudinary.uploader.destroy(publicId)) as {
+      result: string;
+    };
+    const { result } = response;
+    if (result !== 'ok')
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    return result;
+  }
 
-    async uploadBuffer(buffer: Buffer): Promise<UploadApiResponse> {
+  async uploadBuffer(buffer: Buffer): Promise<UploadApiResponse> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: 'avatars' },

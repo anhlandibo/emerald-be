@@ -48,7 +48,9 @@ export const BooleanOptional = () =>
     ApiProperty({ required: false }),
     IsOptional(),
     IsBoolean(),
-    Transform(({ value }) => value === 'true' || value === '1' || value === true),
+    Transform(
+      ({ value }) => value === 'true' || value === '1' || value === true,
+    ),
   );
 
 export const PhoneNumberRequired = (name: string) =>
@@ -79,17 +81,21 @@ export const PhoneNumberOptional = (name: string) =>
     }),
   );
 
-export const IntegerRequired = (
-  name: string,
-  min?: number,
-  max?: number,
-) => {
+export const IntegerRequired = (name: string, min?: number, max?: number) => {
   return applyDecorators(
-    ApiProperty({ required: true, type: Number, description: `${name} (integer)` }),
-    Type(() => Number), 
+    ApiProperty({
+      required: true,
+      type: Number,
+      description: `${name} (integer)`,
+    }),
+    Type(() => Number),
     IsNotEmpty({ message: `${name} can not be empty` }),
     IsInt({ message: `${name} must be an integer` }),
-    ...(min !== undefined ? [Min(min, { message: `${name} must be >= ${min}` })] : []),
-    ...(max !== undefined ? [Max(max, { message: `${name} must be <= ${max}` })] : []),
+    ...(min !== undefined
+      ? [Min(min, { message: `${name} must be >= ${min}` })]
+      : []),
+    ...(max !== undefined
+      ? [Max(max, { message: `${name} must be <= ${max}` })]
+      : []),
   );
 };
