@@ -115,7 +115,6 @@ export class UpdateResidentDto {
     return value as HometownDto;
   })
   @Type(() => HometownDto)
-
   @IsObject()
   @IsOptional()
   hometown?: HometownDto;

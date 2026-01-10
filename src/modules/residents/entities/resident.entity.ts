@@ -25,7 +25,12 @@ export class Resident {
   @Column({ type: 'varchar', nullable: false, name: 'full_name' })
   fullName: string;
 
-  @Column({ type: 'varchar', unique: true, nullable: false, name: 'citizen_id' })
+  @Column({
+    type: 'varchar',
+    unique: true,
+    nullable: false,
+    name: 'citizen_id',
+  })
   citizenId: string;
 
   @Column({ type: 'varchar', nullable: true, name: 'image_url' })

@@ -7,10 +7,7 @@ import { Account } from '../accounts/entities/account.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Resident, Account]),
-    CloudinaryModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Resident, Account]), CloudinaryModule],
   controllers: [ResidentsController],
   providers: [ResidentsService],
   exports: [ResidentsService],

@@ -43,9 +43,8 @@ export class ResidentsService {
       where: { citizenId: createResidentDto.citizenId },
     });
 
-    if (existingCitizen) 
+    if (existingCitizen)
       throw new HttpException('Citizen ID already exists', HttpStatus.CONFLICT);
-    
 
     // Check if email already exists
     const existingEmail = await this.accountRepository.findOne({
@@ -57,9 +56,7 @@ export class ResidentsService {
     }
 
     // Generate password from CCCD
-    const password = this.generatePasswordFromCCCD(
-      createResidentDto.citizenId,
-    );
+    const password = this.generatePasswordFromCCCD(createResidentDto.citizenId);
 
     // Upload image if provided
     let imageUrl: string | undefined = undefined;
@@ -147,7 +144,10 @@ export class ResidentsService {
     });
 
     if (!resident) {
-      throw new HttpException(`Resident with ID ${id} not found`, HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        `Resident with ID ${id} not found`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return resident;
@@ -176,7 +176,10 @@ export class ResidentsService {
         updateResidentDto.citizenId,
       );
       if (existingCitizen) {
-        throw new HttpException('Citizen ID already exists', HttpStatus.CONFLICT);
+        throw new HttpException(
+          'Citizen ID already exists',
+          HttpStatus.CONFLICT,
+        );
       }
     }
 
@@ -197,7 +200,10 @@ export class ResidentsService {
           updateResidentDto.image = uploadResult.secure_url;
         }
       } catch (error) {
-        throw new HttpException('Failed to upload image', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Failed to upload image',
+          HttpStatus.BAD_REQUEST,
+        );
       }
     }
 
