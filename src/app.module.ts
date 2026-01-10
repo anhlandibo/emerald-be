@@ -6,6 +6,7 @@ import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import getDatabaseConfig from './configs/database.config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccountsModule } from './modules/accounts/accounts.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
       useFactory: getDatabaseConfig,
     }),
     AccountsModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

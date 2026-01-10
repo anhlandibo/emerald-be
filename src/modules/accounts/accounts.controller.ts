@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   ClassSerializerInterceptor,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
@@ -21,6 +22,10 @@ import { QueryAccountDto } from './dto/query-account.dto';
 import { AccountResponseDto } from './dto/account-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
+import { Roles } from 'src/decorators/role.decorator';
+import { UserRole } from './enums/user-role.enum';
+import { RolesGuard } from 'src/guards/roles.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Accounts')
 @Controller('accounts')
@@ -50,6 +55,8 @@ export class AccountsController {
   }
 
   @Get()
+  // @Roles(UserRole.ADMIN)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get all accounts with filters' })
   @ApiResponse({
