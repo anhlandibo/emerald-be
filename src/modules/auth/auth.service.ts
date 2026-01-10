@@ -1,10 +1,10 @@
-import { 
-  Injectable, 
-  UnauthorizedException, 
+import {
+  Injectable,
+  UnauthorizedException,
   ConflictException,
-  BadRequestException, 
+  BadRequestException,
   HttpException,
-  HttpStatus
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -26,21 +26,21 @@ export class AuthService {
     const user = await this.accountsService.findByEmail(email);
     if (!user) return null;
 
-    if (!user.isActive) throw new HttpException('Account is inactive', HttpStatus.UNAUTHORIZED);
-  
+    if (!user.isActive)
+      throw new HttpException('Account is inactive', HttpStatus.UNAUTHORIZED);
 
     const isPasswordValid = user.validatePassword(password);
     if (!isPasswordValid) return null;
-      
+
     const { password: _, ...result } = user;
     return result;
   }
 
   generateTokens(user: Account): AuthTokensDto {
-    const payload = { 
-      email: user.email, 
-      sub: user.id, 
-      role: user.role 
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role,
     };
 
     const refreshPayload = {
@@ -50,12 +50,14 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: (this.configService.get<string>('JWT_EXPIRATION') || '15m') as any,
+      expiresIn: (this.configService.get<string>('JWT_EXPIRATION') ||
+        '15m') as any,
     });
 
     const refreshToken = this.jwtService.sign(refreshPayload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d') as any,
+      expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRATION') ||
+        '7d') as any,
     });
 
     return {
@@ -75,17 +77,18 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const existingUser = await this.accountsService.findByEmail(registerDto.email);
-    if (existingUser) 
+    const existingUser = await this.accountsService.findByEmail(
+      registerDto.email,
+    );
+    if (existingUser)
       throw new HttpException('Email already exists', HttpStatus.CONFLICT);
-    
 
     // Force role to RESIDENT for registration
     const newUser = await this.accountsService.create({
       ...registerDto,
       role: UserRole.RESIDENT,
     });
-    
+
     const { password: _, ...userWithoutPassword } = newUser;
 
     return {
@@ -95,29 +98,38 @@ export class AuthService {
 
   async refreshTokens(userId: number, email: string) {
     const user = await this.accountsService.findOne(userId);
-    
-    if (!user || !user.isActive) 
-      throw new HttpException('Account not found or is inactive', HttpStatus.UNAUTHORIZED);
-    
 
-    if (user.email !== email) 
+    if (!user || !user.isActive)
+      throw new HttpException(
+        'Account not found or is inactive',
+        HttpStatus.UNAUTHORIZED,
+      );
+
+    if (user.email !== email)
       throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
-    
 
     return this.generateTokens(user);
   }
 
-  async changePassword(userId: number, oldPassword: string, newPassword: string) {
+  async changePassword(
+    userId: number,
+    oldPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.accountsService.findOne(userId);
-    
-    const isOldPasswordValid = user.validatePassword(oldPassword);
-    if (!isOldPasswordValid) 
-      throw new HttpException('Old password is incorrect', HttpStatus.BAD_REQUEST);
-    
 
-    if (oldPassword === newPassword) 
-      throw new HttpException('Password cannot be the same as the old password', HttpStatus.BAD_REQUEST);
-    
+    const isOldPasswordValid = user.validatePassword(oldPassword);
+    if (!isOldPasswordValid)
+      throw new HttpException(
+        'Old password is incorrect',
+        HttpStatus.BAD_REQUEST,
+      );
+
+    if (oldPassword === newPassword)
+      throw new HttpException(
+        'Password cannot be the same as the old password',
+        HttpStatus.BAD_REQUEST,
+      );
 
     await this.accountsService.update(userId, { password: newPassword });
 

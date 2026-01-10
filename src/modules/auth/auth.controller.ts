@@ -10,7 +10,12 @@ import {
   ClassSerializerInterceptor,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -31,14 +36,15 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Register a new account',
-    description: 'Register a new account with role RESIDENT. Admin and Technician are created by Admin via module accounts.'
+    description:
+      'Register a new account with role RESIDENT. Admin and Technician are created by Admin via module accounts.',
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Registration successful',
-    type: AuthResponseDto 
+    type: AuthResponseDto,
   })
   @ApiResponse({ status: 409, description: 'Email is already in use' })
   async register(@Body() registerDto: RegisterDto) {
@@ -49,16 +55,13 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Login successful',
-    type: AuthResponseDto 
+    type: AuthResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Incorrect email or password' })
-  login(
-    @Body() loginDto: LoginDto,
-    @Req() req: Request & { user: Account },
-  ) {
+  login(@Body() loginDto: LoginDto, @Req() req: Request & { user: Account }) {
     return this.authService.login(req.user);
   }
 
@@ -66,14 +69,15 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Refresh access token',
-    description: 'Use refresh token to get a new pair of access token and refresh token'
+    description:
+      'Use refresh token to get a new pair of access token and refresh token',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Token refresh successful',
-    type: AuthTokensDto 
+    type: AuthTokensDto,
   })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refreshTokens(
@@ -86,9 +90,10 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Logout',
-    description: 'Client should delete the stored token after calling this endpoint'
+    description:
+      'Client should delete the stored token after calling this endpoint',
   })
   @ApiResponse({ status: 200, description: 'Logout successful' })
   logout() {
@@ -99,9 +104,9 @@ export class AuthController {
   @Get('profile')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Profile retrieved successfully' 
+  @ApiResponse({
+    status: 200,
+    description: 'Profile retrieved successfully',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@Req() req: Request & { user: { id: number } }) {

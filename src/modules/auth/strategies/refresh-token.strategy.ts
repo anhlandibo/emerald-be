@@ -10,16 +10,21 @@ export interface RefreshTokenPayload {
 }
 
 @Injectable()
-export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+export class RefreshTokenStrategy extends PassportStrategy(
+  Strategy,
+  'jwt-refresh',
+) {
   constructor(
     private configService: ConfigService,
     private accountsService: AccountsService,
   ) {
     const secret = configService.get<string>('JWT_REFRESH_SECRET');
     if (!secret) {
-      throw new Error('JWT_REFRESH_SECRET is not defined in environment variables');
+      throw new Error(
+        'JWT_REFRESH_SECRET is not defined in environment variables',
+      );
     }
-    
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -27,13 +32,15 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refres
     });
   }
 
-  async validate(payload: RefreshTokenPayload): Promise<{ id: number; email: string }> {
+  async validate(
+    payload: RefreshTokenPayload,
+  ): Promise<{ id: number; email: string }> {
     const user = await this.accountsService.findOne(payload.sub);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Account not found or is inactive');
     }
-    return { 
-      id: payload.sub, 
+    return {
+      id: payload.sub,
       email: payload.email,
     };
   }

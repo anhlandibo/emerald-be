@@ -23,7 +23,7 @@ export class AccountsService {
     });
 
     if (count > 0) throw new ConflictException('Email already exists');
-  
+
     const account = this.accountRepository.create(createAccountDto);
     return this.accountRepository.save(account);
   }
