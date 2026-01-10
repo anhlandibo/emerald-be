@@ -9,7 +9,6 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AccountsService } from '../accounts/accounts.service';
-import { RegisterDto } from './dto/register.dto';
 import { Account } from '../accounts/entities/account.entity';
 import { UserRole } from '../accounts/enums/user-role.enum';
 import { AuthTokensDto } from './dto/auth-tokens.dto';
@@ -73,26 +72,6 @@ export class AuthService {
     return {
       ...userWithoutPassword,
       ...tokens,
-    };
-  }
-
-  async register(registerDto: RegisterDto) {
-    const existingUser = await this.accountsService.findByEmail(
-      registerDto.email,
-    );
-    if (existingUser)
-      throw new HttpException('Email already exists', HttpStatus.CONFLICT);
-
-    // Force role to RESIDENT for registration
-    const newUser = await this.accountsService.create({
-      ...registerDto,
-      role: UserRole.RESIDENT,
-    });
-
-    const { password: _, ...userWithoutPassword } = newUser;
-
-    return {
-      ...userWithoutPassword,
     };
   }
 

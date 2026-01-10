@@ -19,7 +19,6 @@ import {
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -34,22 +33,6 @@ import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 @UseInterceptors(ClassSerializerInterceptor, TransformInterceptor)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
-
-  @Post('register')
-  @ApiOperation({
-    summary: 'Register a new account',
-    description:
-      'Register a new account with role RESIDENT. Admin and Technician are created by Admin via module accounts.',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Registration successful',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ status: 409, description: 'Email is already in use' })
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
-  }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
