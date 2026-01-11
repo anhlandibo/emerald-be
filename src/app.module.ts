@@ -12,8 +12,12 @@ import { BlocksModule } from './modules/blocks/blocks.module';
 import { ApartmentsModule } from './modules/apartments/apartments.module';
 import { AssetTypesModule } from './modules/asset-types/asset-types.module';
 import { AssetsModule } from './modules/assets/assets.module';
+import { IssuesModule } from './modules/issues/issues.module';
+import { ServicesModule } from './modules/services/services.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -23,6 +27,7 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
       inject: [ConfigService],
       useFactory: getDatabaseConfig,
     }),
+    ScheduleModule.forRoot(),
     AccountsModule,
     AuthModule,
     ResidentsModule,
@@ -30,6 +35,9 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
     ApartmentsModule,
     AssetTypesModule,
     AssetsModule,
+    IssuesModule,
+    ServicesModule,
+    BookingsModule,
     FeesModule,
   ],
   controllers: [AppController],

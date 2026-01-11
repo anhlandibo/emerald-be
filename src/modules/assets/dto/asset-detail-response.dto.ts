@@ -132,12 +132,21 @@ export class AssetDetailResponseDto {
   name: string;
 
   @ApiProperty({
+    example: 'Máy phát điện công suất 500kVA, tự động khởi động khi mất điện',
+    description: 'Description of the asset',
+    required: false,
+  })
+  @Expose()
+  description?: string;
+
+  @ApiProperty({
     example:
       'Máy hoạt động ổn định. Lưu ý: Cần kiểm tra kỹ mức nhiên liệu trước khi test định kỳ.',
     description: 'Additional notes',
+    required: false,
   })
   @Expose()
-  note: string;
+  note?: string;
 
   @ApiProperty({
     example: AssetStatus.ACTIVE,
