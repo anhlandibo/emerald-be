@@ -12,6 +12,7 @@ import { BlocksModule } from './modules/blocks/blocks.module';
 import { ApartmentsModule } from './modules/apartments/apartments.module';
 import { AssetTypesModule } from './modules/asset-types/asset-types.module';
 import { AssetsModule } from './modules/assets/assets.module';
+import { FeesModule } from './modules/fees/fees.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 
 @Module({
@@ -29,6 +30,7 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
     ApartmentsModule,
     AssetTypesModule,
     AssetsModule,
+    FeesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
