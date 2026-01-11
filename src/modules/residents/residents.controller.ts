@@ -28,6 +28,7 @@ import { CreateResidentDto } from './dto/create-resident.dto';
 import { UpdateResidentDto } from './dto/update-resident.dto';
 import { QueryResidentDto } from './dto/query-resident.dto';
 import { ResidentResponseDto } from './dto/resident-response.dto';
+import { DeleteManyResidentsDto } from './dto/delete-many-residents.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -165,5 +166,20 @@ export class ResidentsController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     const resident = await this.residentsService.remove(id);
     return plainToInstance(ResidentResponseDto, resident);
+  }
+
+  @Post('delete-many')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Soft delete multiple residents' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Residents deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No residents found with provided IDs',
+  })
+  async removeMany(@Body() deleteManyDto: DeleteManyResidentsDto) {
+    return this.residentsService.removeMany(deleteManyDto.ids);
   }
 }

@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, FindOptionsWhere } from 'typeorm';
+import { Repository, ILike, FindOptionsWhere, In } from 'typeorm';
 import { Block } from './entities/block.entity';
 import { Apartment } from '../apartments/entities/apartment.entity';
 import { CreateBlockDto } from './dto/create-block.dto';
@@ -260,6 +260,33 @@ export class BlocksService {
     await this.apartmentRepository.update({ blockId: id }, { isActive: false });
 
     return { message: 'Block deleted successfully' };
+  }
+
+  async removeMany(ids: number[]) {
+    const blocks = await this.blockRepository.find({
+      where: { id: In(ids), isActive: true },
+    });
+
+    if (blocks.length === 0) {
+      throw new HttpException(
+        'No blocks found with provided IDs',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Soft delete all blocks
+    await this.blockRepository.update({ id: In(ids) }, { isActive: false });
+
+    // Also soft delete all apartments in these blocks
+    await this.apartmentRepository.update(
+      { blockId: In(ids) },
+      { isActive: false },
+    );
+
+    return {
+      message: `Successfully deleted ${blocks.length} block(s)`,
+      deletedCount: blocks.length,
+    };
   }
 
   private getStatusLabel(status: BlockStatus): string {

@@ -20,6 +20,7 @@ import { UpdateApartmentDto } from './dto/update-apartment.dto';
 import { QueryApartmentDto } from './dto/query-apartment.dto';
 import { ApartmentListResponseDto } from './dto/apartment-list-response.dto';
 import { ApartmentDetailResponseDto } from './dto/apartment-detail-response.dto';
+import { DeleteManyApartmentsDto } from './dto/delete-many-apartments.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 
 @ApiTags('Apartments')
@@ -135,5 +136,20 @@ export class ApartmentsController {
   })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.apartmentsService.remove(id);
+  }
+
+  @Post('delete-many')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Soft delete multiple apartments' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Apartments deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No apartments found with provided IDs',
+  })
+  removeMany(@Body() deleteManyDto: DeleteManyApartmentsDto) {
+    return this.apartmentsService.removeMany(deleteManyDto.ids);
   }
 }
