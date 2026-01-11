@@ -6,45 +6,37 @@ import {
   IsOptional,
   IsInt,
   Min,
+  ValidateNested,
+  IsArray,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { BlockStatus } from '../enums/block-status.enum';
+import { CreateBlockApartmentDto } from './create-block-apartment.dto';
 
 export class CreateBlockDto {
   @ApiProperty({
-    example: 'Emerald A',
+    example: 'Tòa A - Sakura',
     description: 'Name of the block',
   })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  buildingName: string;
 
   @ApiProperty({
     example: 'Nguyễn Văn A',
-    description: 'Manager name (optional)',
-    required: false,
+    description: 'Manager name',
   })
   @IsString()
-  @IsOptional()
-  managerName?: string;
+  @IsNotEmpty()
+  managerName: string;
 
   @ApiProperty({
     example: '0901234567',
-    description: 'Manager phone number (optional)',
-    required: false,
+    description: 'Manager phone number',
   })
   @IsString()
-  @IsOptional()
-  managerPhone?: string;
-
-  @ApiProperty({
-    example: 30,
-    description: 'Total floors (optional)',
-    required: false,
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  totalFloors?: number;
+  @IsNotEmpty()
+  managerPhone: string;
 
   @ApiProperty({
     example: BlockStatus.OPERATING,
@@ -55,4 +47,15 @@ export class CreateBlockDto {
   @IsEnum(BlockStatus)
   @IsOptional()
   status?: BlockStatus;
+
+  @ApiProperty({
+    type: [CreateBlockApartmentDto],
+    description: 'Array of apartments to create with the block',
+    required: false,
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateBlockApartmentDto)
+  @IsOptional()
+  apartments?: CreateBlockApartmentDto[];
 }

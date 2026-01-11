@@ -18,9 +18,9 @@ import { BlocksService } from './blocks.service';
 import { CreateBlockDto } from './dto/create-block.dto';
 import { UpdateBlockDto } from './dto/update-block.dto';
 import { QueryBlockDto } from './dto/query-block.dto';
-import { BlockResponseDto } from './dto/block-response.dto';
+import { BlockListResponseDto } from './dto/block-list-response.dto';
+import { BlockDetailResponseDto } from './dto/block-detail-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
-import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Blocks')
 @Controller('blocks')
@@ -30,11 +30,11 @@ export class BlocksController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new block' })
+  @ApiOperation({ summary: 'Create a new block with apartments' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Block created successfully',
-    type: BlockResponseDto,
+    type: BlockDetailResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,
@@ -45,26 +45,24 @@ export class BlocksController {
     description: 'Invalid input data',
   })
   async create(@Body() createBlockDto: CreateBlockDto) {
-    const block = await this.blocksService.create(createBlockDto);
-    return plainToInstance(BlockResponseDto, block);
+    return this.blocksService.create(createBlockDto);
   }
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get all blocks with filters' })
+  @ApiOperation({ summary: 'Get all blocks with apartment statistics' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'List of blocks retrieved successfully',
-    type: [BlockResponseDto],
+    type: [BlockListResponseDto],
   })
   async findAll(@Query() queryBlockDto: QueryBlockDto) {
-    const result = await this.blocksService.findAll(queryBlockDto);
-    return plainToInstance(BlockResponseDto, result);
+    return this.blocksService.findAll(queryBlockDto);
   }
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get a block by ID' })
+  @ApiOperation({ summary: 'Get block details with apartments by ID' })
   @ApiParam({
     name: 'id',
     description: 'Block ID',
@@ -72,21 +70,20 @@ export class BlocksController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Block retrieved successfully',
-    type: BlockResponseDto,
+    description: 'Block details retrieved successfully',
+    type: BlockDetailResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Block not found',
   })
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    const block = await this.blocksService.findOne(id);
-    return plainToInstance(BlockResponseDto, block);
+    return this.blocksService.findOne(id);
   }
 
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update a block by ID' })
+  @ApiOperation({ summary: 'Update a block and its apartments by ID' })
   @ApiParam({
     name: 'id',
     description: 'Block ID',
@@ -95,7 +92,7 @@ export class BlocksController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Block updated successfully',
-    type: BlockResponseDto,
+    type: BlockDetailResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -113,8 +110,7 @@ export class BlocksController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateBlockDto: UpdateBlockDto,
   ) {
-    const block = await this.blocksService.update(id, updateBlockDto);
-    return plainToInstance(BlockResponseDto, block);
+    return this.blocksService.update(id, updateBlockDto);
   }
 
   @Delete(':id')
@@ -128,14 +124,12 @@ export class BlocksController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Block deleted successfully',
-    type: BlockResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Block not found',
   })
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const block = await this.blocksService.remove(id);
-    return plainToInstance(BlockResponseDto, block);
+    return this.blocksService.remove(id);
   }
 }
