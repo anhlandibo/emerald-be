@@ -20,6 +20,7 @@ import { UpdateBlockDto } from './dto/update-block.dto';
 import { QueryBlockDto } from './dto/query-block.dto';
 import { BlockListResponseDto } from './dto/block-list-response.dto';
 import { BlockDetailResponseDto } from './dto/block-detail-response.dto';
+import { DeleteManyBlocksDto } from './dto/delete-many-blocks.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 
 @ApiTags('Blocks')
@@ -131,5 +132,20 @@ export class BlocksController {
   })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.blocksService.remove(id);
+  }
+
+  @Post('delete-many')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Soft delete multiple blocks' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Blocks deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No blocks found with provided IDs',
+  })
+  async removeMany(@Body() deleteManyDto: DeleteManyBlocksDto) {
+    return this.blocksService.removeMany(deleteManyDto.ids);
   }
 }

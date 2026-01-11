@@ -1,6 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Apartment } from './entities/apartment.entity';
 import { ApartmentResident } from './entities/apartment-resident.entity';
 import { Block } from '../blocks/entities/block.entity';
@@ -336,6 +336,27 @@ export class ApartmentsService {
     await this.apartmentRepository.save(apartment);
 
     return { message: 'Apartment deleted successfully' };
+  }
+
+  async removeMany(ids: number[]) {
+    const apartments = await this.apartmentRepository.find({
+      where: { id: In(ids), isActive: true },
+    });
+
+    if (apartments.length === 0) {
+      throw new HttpException(
+        'No apartments found with provided IDs',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Soft delete all apartments
+    await this.apartmentRepository.update({ id: In(ids) }, { isActive: false });
+
+    return {
+      message: `Successfully deleted ${apartments.length} apartment(s)`,
+      deletedCount: apartments.length,
+    };
   }
 
   private getGenderLabel(gender: Gender): string {

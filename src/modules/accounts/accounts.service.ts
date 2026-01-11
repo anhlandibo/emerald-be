@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, FindOptionsWhere } from 'typeorm';
+import { Repository, ILike, FindOptionsWhere, In } from 'typeorm';
 import { Account } from './entities/account.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -78,6 +78,24 @@ export class AccountsService {
     const account = await this.findOne(id);
     account.isActive = false;
     return this.accountRepository.save(account);
+  }
+
+  async removeMany(ids: number[]) {
+    const accounts = await this.accountRepository.find({
+      where: { id: In(ids), isActive: true },
+    });
+
+    if (accounts.length === 0) {
+      throw new NotFoundException('No accounts found with provided IDs');
+    }
+
+    // Soft delete all accounts
+    await this.accountRepository.update({ id: In(ids) }, { isActive: false });
+
+    return {
+      message: `Successfully deleted ${accounts.length} account(s)`,
+      deletedCount: accounts.length,
+    };
   }
 
   async restore(id: number) {

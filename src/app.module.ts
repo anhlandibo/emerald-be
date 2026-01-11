@@ -10,6 +10,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ResidentsModule } from './modules/residents/residents.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { ApartmentsModule } from './modules/apartments/apartments.module';
+import { AssetTypesModule } from './modules/asset-types/asset-types.module';
+import { AssetsModule } from './modules/assets/assets.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 
 @Module({
@@ -25,6 +27,8 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
     ResidentsModule,
     BlocksModule,
     ApartmentsModule,
+    AssetTypesModule,
+    AssetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

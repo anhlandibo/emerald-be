@@ -20,6 +20,7 @@ import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { QueryAccountDto } from './dto/query-account.dto';
 import { AccountResponseDto } from './dto/account-response.dto';
+import { DeleteManyAccountsDto } from './dto/delete-many-accounts.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
 import { Roles } from 'src/decorators/role.decorator';
@@ -139,6 +140,21 @@ export class AccountsController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     const account = await this.accountsService.remove(id);
     return plainToInstance(AccountResponseDto, account);
+  }
+
+  @Post('delete-many')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Soft delete multiple accounts' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Accounts deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No accounts found with provided IDs',
+  })
+  removeMany(@Body() deleteManyDto: DeleteManyAccountsDto) {
+    return this.accountsService.removeMany(deleteManyDto.ids);
   }
 
   @Patch(':id/restore')

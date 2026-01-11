@@ -7,7 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, FindOptionsWhere } from 'typeorm';
+import { Repository, ILike, FindOptionsWhere, In } from 'typeorm';
 import { Resident } from './entities/resident.entity';
 import { Account } from '../accounts/entities/account.entity';
 import { CreateResidentDto } from './dto/create-resident.dto';
@@ -237,5 +237,38 @@ export class ResidentsService {
     }
 
     return resident;
+  }
+
+  async removeMany(ids: number[]) {
+    const residents = await this.residentRepository.find({
+      where: { id: In(ids), isActive: true },
+      relations: ['account'],
+    });
+
+    if (residents.length === 0) {
+      throw new HttpException(
+        'No residents found with provided IDs',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Soft delete all residents
+    await this.residentRepository.update({ id: In(ids) }, { isActive: false });
+
+    // Soft delete associated accounts
+    const accountIds = residents
+      .map((r) => r.accountId)
+      .filter((id) => id !== null && id !== undefined);
+    if (accountIds.length > 0) {
+      await this.accountRepository.update(
+        { id: In(accountIds) },
+        { isActive: false },
+      );
+    }
+
+    return {
+      message: `Successfully deleted ${residents.length} resident(s)`,
+      deletedCount: residents.length,
+    };
   }
 }
