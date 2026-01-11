@@ -50,9 +50,45 @@ export class AssetsService {
       );
     }
 
+    // Calculate warranty expiration date if warrantyYears is provided
+    let warrantyExpirationDate: Date | undefined;
+    if (createAssetDto.warrantyYears && createAssetDto.installationDate) {
+      const installDate = new Date(createAssetDto.installationDate);
+      warrantyExpirationDate = new Date(installDate);
+      warrantyExpirationDate.setFullYear(
+        installDate.getFullYear() + createAssetDto.warrantyYears,
+      );
+    }
+
+    // Calculate next maintenance date if maintenanceIntervalMonths is provided
+    let nextMaintenanceDate: Date | undefined;
+    if (
+      createAssetDto.maintenanceIntervalMonths &&
+      createAssetDto.installationDate
+    ) {
+      const installDate = new Date(createAssetDto.installationDate);
+      nextMaintenanceDate = new Date(installDate);
+      nextMaintenanceDate.setMonth(
+        installDate.getMonth() + createAssetDto.maintenanceIntervalMonths,
+      );
+    }
+
     const asset = this.assetRepository.create({
-      ...createAssetDto,
+      name: createAssetDto.name,
+      typeId: createAssetDto.typeId,
+      blockId: createAssetDto.blockId,
+      floor: createAssetDto.floor,
+      locationDetail: createAssetDto.locationDetail,
       status: createAssetDto.status || AssetStatus.ACTIVE,
+      installationDate: createAssetDto.installationDate
+        ? new Date(createAssetDto.installationDate)
+        : undefined,
+      warrantyYears: createAssetDto.warrantyYears,
+      warrantyExpirationDate,
+      maintenanceIntervalMonths: createAssetDto.maintenanceIntervalMonths,
+      nextMaintenanceDate,
+      description: createAssetDto.description,
+      note: createAssetDto.note,
     });
 
     const savedAsset = await this.assetRepository.save(asset);
@@ -155,6 +191,7 @@ export class AssetsService {
     return {
       id: asset.id,
       name: asset.name,
+      description: asset.description,
       note: asset.note,
       status: asset.status,
       type: {
@@ -231,7 +268,85 @@ export class AssetsService {
       }
     }
 
-    Object.assign(asset, updateAssetDto);
+    // Calculate warranty expiration date if warrantyYears is provided
+    if (updateAssetDto.warrantyYears !== undefined) {
+      const installDate = updateAssetDto.installationDate
+        ? new Date(updateAssetDto.installationDate)
+        : asset.installationDate;
+
+      if (installDate && updateAssetDto.warrantyYears > 0) {
+        const warrantyExpiration = new Date(installDate);
+        warrantyExpiration.setFullYear(
+          installDate.getFullYear() + updateAssetDto.warrantyYears,
+        );
+        asset.warrantyYears = updateAssetDto.warrantyYears;
+        asset.warrantyExpirationDate = warrantyExpiration;
+      } else if (updateAssetDto.warrantyYears === 0) {
+        asset.warrantyYears = 0;
+        asset.warrantyExpirationDate = undefined;
+      }
+    }
+
+    // Update lastMaintenanceDate if provided
+    if (
+      updateAssetDto.lastMaintenanceDate !== undefined &&
+      updateAssetDto.lastMaintenanceDate !== null
+    ) {
+      asset.lastMaintenanceDate = new Date(updateAssetDto.lastMaintenanceDate);
+    }
+
+    // Calculate next maintenance date if maintenanceIntervalMonths is provided or lastMaintenanceDate is updated
+    // Use stored maintenanceIntervalMonths if available, or calculate from new/existing values
+    if (
+      updateAssetDto.maintenanceIntervalMonths !== undefined ||
+      (updateAssetDto.lastMaintenanceDate !== undefined &&
+        updateAssetDto.lastMaintenanceDate !== null)
+    ) {
+      // Determine interval to use
+      const interval =
+        updateAssetDto.maintenanceIntervalMonths !== undefined
+          ? updateAssetDto.maintenanceIntervalMonths
+          : asset.maintenanceIntervalMonths;
+
+      // Determine base date for calculation (prefer updated lastMaintenanceDate)
+      const baseDate =
+        (updateAssetDto.lastMaintenanceDate !== undefined &&
+        updateAssetDto.lastMaintenanceDate !== null
+          ? new Date(updateAssetDto.lastMaintenanceDate)
+          : asset.lastMaintenanceDate) ||
+        (updateAssetDto.installationDate
+          ? new Date(updateAssetDto.installationDate)
+          : asset.installationDate);
+
+      // Calculate next maintenance date
+      if (baseDate && interval && interval > 0) {
+        const nextMaintenance = new Date(baseDate);
+        nextMaintenance.setMonth(nextMaintenance.getMonth() + interval);
+        asset.maintenanceIntervalMonths = interval;
+        asset.nextMaintenanceDate = nextMaintenance;
+      } else if (interval === 0) {
+        asset.maintenanceIntervalMonths = 0;
+        asset.nextMaintenanceDate = undefined;
+      }
+    }
+
+    // Update other fields
+    if (updateAssetDto.name !== undefined) asset.name = updateAssetDto.name;
+    if (updateAssetDto.typeId !== undefined)
+      asset.typeId = updateAssetDto.typeId;
+    if (updateAssetDto.blockId !== undefined)
+      asset.blockId = updateAssetDto.blockId;
+    if (updateAssetDto.floor !== undefined) asset.floor = updateAssetDto.floor;
+    if (updateAssetDto.locationDetail !== undefined)
+      asset.locationDetail = updateAssetDto.locationDetail;
+    if (updateAssetDto.status !== undefined)
+      asset.status = updateAssetDto.status;
+    if (updateAssetDto.installationDate !== undefined)
+      asset.installationDate = new Date(updateAssetDto.installationDate);
+    if (updateAssetDto.description !== undefined)
+      asset.description = updateAssetDto.description;
+    if (updateAssetDto.note !== undefined) asset.note = updateAssetDto.note;
+
     await this.assetRepository.save(asset);
 
     return this.findOne(id);

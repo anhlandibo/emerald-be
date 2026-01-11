@@ -37,7 +37,7 @@ export class Asset {
   floor: number;
 
   @Column({ type: 'varchar', nullable: true, name: 'location_detail' })
-  locationDetail: string;
+  locationDetail?: string;
 
   @Column({
     type: 'varchar',
@@ -47,19 +47,28 @@ export class Asset {
   status: AssetStatus;
 
   @Column({ type: 'date', nullable: true, name: 'installation_date' })
-  installationDate: Date;
+  installationDate?: Date;
+
+  @Column({ type: 'int', nullable: true, name: 'warranty_years' })
+  warrantyYears?: number;
 
   @Column({ type: 'date', nullable: true, name: 'warranty_expiration_date' })
-  warrantyExpirationDate: Date;
+  warrantyExpirationDate?: Date;
+
+  @Column({ type: 'int', nullable: true, name: 'maintenance_interval_months' })
+  maintenanceIntervalMonths?: number;
 
   @Column({ type: 'date', nullable: true, name: 'last_maintenance_date' })
-  lastMaintenanceDate: Date;
+  lastMaintenanceDate?: Date;
 
   @Column({ type: 'date', nullable: true, name: 'next_maintenance_date' })
-  nextMaintenanceDate: Date;
+  nextMaintenanceDate?: Date;
 
   @Column({ type: 'text', nullable: true })
-  note: string;
+  description?: string;
+
+  @Column({ type: 'text', nullable: true })
+  note?: string;
 
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
