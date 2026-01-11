@@ -67,7 +67,9 @@ export class CreateIssueDto {
     },
     required: false,
   })
+  @IsOptional()
   files?: any[]; // Trường này để Swagger hiện nút Upload
 
+  @IsOptional()
   fileUrls?: string[]; // Trường này dùng để lưu URL sau khi upload thành công
 }
