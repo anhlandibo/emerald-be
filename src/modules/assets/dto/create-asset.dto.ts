@@ -6,6 +6,8 @@ import {
   IsOptional,
   IsEnum,
   IsDateString,
+  IsPositive,
+  Min,
 } from 'class-validator';
 import { AssetStatus } from '../enums/asset-status.enum';
 
@@ -71,22 +73,33 @@ export class CreateAssetDto {
   installationDate?: string;
 
   @ApiProperty({
-    example: '2028-01-10',
-    description: 'Warranty expiration date',
+    example: 2,
+    description: 'Warranty period in years',
     required: false,
   })
-  @IsDateString()
+  @IsInt()
+  @IsPositive()
   @IsOptional()
-  warrantyExpirationDate?: string;
+  warrantyYears?: number;
 
   @ApiProperty({
-    example: '2026-07-10',
-    description: 'Next maintenance date',
+    example: 6,
+    description: 'Maintenance interval in months',
     required: false,
   })
-  @IsDateString()
+  @IsInt()
+  @Min(1)
   @IsOptional()
-  nextMaintenanceDate?: string;
+  maintenanceIntervalMonths?: number;
+
+  @ApiProperty({
+    example: 'Camera chất lượng cao, quay đêm hồng ngoại',
+    description: 'Description of the asset',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  description?: string;
 
   @ApiProperty({
     example: 'Model Hikvision 2025, quay đêm hồng ngoại',
