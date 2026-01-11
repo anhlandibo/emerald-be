@@ -9,6 +9,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ResidentsModule } from './modules/residents/residents.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
+import { ApartmentsModule } from './modules/apartments/apartments.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 
 @Module({
@@ -23,6 +24,7 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
     AuthModule,
     ResidentsModule,
     BlocksModule,
+    ApartmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

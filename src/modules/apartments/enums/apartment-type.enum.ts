@@ -1,0 +1,6 @@
+export enum ApartmentType {
+  STUDIO = 'STUDIO',
+  ONE_BEDROOM = 'ONE_BEDROOM',
+  TWO_BEDROOM = 'TWO_BEDROOM',
+  PENTHOUSE = 'PENTHOUSE',
+}
