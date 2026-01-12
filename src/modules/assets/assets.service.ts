@@ -9,10 +9,14 @@ import { Repository, In } from 'typeorm';
 import { Asset } from './entities/asset.entity';
 import { AssetType } from '../asset-types/entities/asset-type.entity';
 import { Block } from '../blocks/entities/block.entity';
+import { MaintenanceTicket } from '../maintenance-tickets/entities/maintenance-ticket.entity';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { QueryAssetDto } from './dto/query-asset.dto';
 import { AssetStatus } from './enums/asset-status.enum';
+import { TicketStatus } from '../maintenance-tickets/enums/ticket-status.enum';
+import { plainToInstance } from 'class-transformer';
+import { TicketHistoryItemDto } from '../maintenance-tickets/dto/ticket-history-item.dto';
 
 @Injectable()
 export class AssetsService {
@@ -23,6 +27,8 @@ export class AssetsService {
     private readonly assetTypeRepository: Repository<AssetType>,
     @InjectRepository(Block)
     private readonly blockRepository: Repository<Block>,
+    @InjectRepository(MaintenanceTicket)
+    private readonly ticketRepository: Repository<MaintenanceTicket>,
   ) {}
 
   async create(createAssetDto: CreateAssetDto) {
@@ -188,6 +194,36 @@ export class AssetsService {
     // Format floor display
     const floorDisplay = this.getFloorDisplay(asset.floor);
 
+    // Get recent maintenance history
+    const tickets = await this.ticketRepository.find({
+      where: {
+        assetId: id,
+        status: TicketStatus.COMPLETED,
+        isActive: true,
+      },
+      relations: ['technician'],
+      order: {
+        completedDate: 'DESC',
+      },
+      take: 10,
+    });
+
+    const recentHistory = tickets.map((ticket) =>
+      plainToInstance(TicketHistoryItemDto, {
+        id: ticket.id,
+        title: ticket.title,
+        type: ticket.type,
+        status: ticket.status,
+        date: ticket.completedDate
+          ? ticket.completedDate.toISOString().split('T')[0]
+          : '',
+        result: ticket.result,
+        technicianName: ticket.technician
+          ? ticket.technician.fullName
+          : 'Chưa có kỹ thuật viên',
+      }),
+    );
+
     return {
       id: asset.id,
       name: asset.name,
@@ -225,6 +261,7 @@ export class AssetsService {
         isOverdueMaintenance: !!isOverdueMaintenance,
         daysUntilMaintenance: daysUntilMaintenance,
       },
+      recentHistory: recentHistory,
     };
   }
 
