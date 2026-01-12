@@ -1,43 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsString,
-  IsEnum,
-  IsDateString,
-  IsObject,
-  IsOptional,
-  Allow,
-} from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { IsString, IsEnum, IsDateString, IsOptional } from 'class-validator';
 import { Gender } from '../enums/gender.enum';
-
-class HometownDto {
-  @ApiProperty({
-    example: 'Hồ Chí Minh',
-    description: 'Province/City',
-  })
-  @IsString()
-  @IsOptional()
-  @Allow()
-  province?: string;
-
-  @ApiProperty({
-    example: 'Quận 1',
-    description: 'District',
-  })
-  @IsString()
-  @IsOptional()
-  @Allow()
-  district?: string;
-
-  @ApiProperty({
-    example: 'Phường Bến Nghé',
-    description: 'Ward',
-  })
-  @IsString()
-  @IsOptional()
-  @Allow()
-  ward?: string;
-}
 
 export class UpdateResidentDto {
   @ApiProperty({
@@ -96,28 +59,40 @@ export class UpdateResidentDto {
   nationality?: string;
 
   @ApiProperty({
-    example: {
-      province: 'Hồ Chí Minh',
-      district: 'Quận 1',
-      ward: 'Phường Bến Nghé',
-    },
-    description: 'Hometown information',
+    example: 'Hồ Chí Minh',
+    description: 'Province/City',
     required: false,
   })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value) as HometownDto;
-      } catch {
-        return value as unknown as HometownDto;
-      }
-    }
-    return value as HometownDto;
-  })
-  @Type(() => HometownDto)
-  @IsObject()
+  @IsString()
   @IsOptional()
-  hometown?: HometownDto;
+  province?: string;
+
+  @ApiProperty({
+    example: 'Quận 1',
+    description: 'District',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  district?: string;
+
+  @ApiProperty({
+    example: 'Phường Bến Nghé',
+    description: 'Ward',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  ward?: string;
+
+  @ApiProperty({
+    example: '123 Đường Nguyễn Huệ',
+    description: 'Detailed address',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  detailAddress?: string;
 
   @ApiProperty({
     description: 'Image file for resident (optional)',

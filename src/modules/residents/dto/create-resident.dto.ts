@@ -4,41 +4,9 @@ import {
   IsString,
   IsEnum,
   IsDateString,
-  IsObject,
   IsOptional,
-  Allow,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
 import { Gender } from '../enums/gender.enum';
-
-class HometownDto {
-  @ApiProperty({
-    example: 'Hồ Chí Minh',
-    description: 'Province/City',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Allow()
-  province: string;
-
-  @ApiProperty({
-    example: 'Quận 1',
-    description: 'District',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Allow()
-  district: string;
-
-  @ApiProperty({
-    example: 'Phường Bến Nghé',
-    description: 'Ward',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Allow()
-  ward: string;
-}
 
 export class CreateResidentDto {
   @ApiProperty({
@@ -99,27 +67,37 @@ export class CreateResidentDto {
   nationality: string;
 
   @ApiProperty({
-    example: {
-      province: 'Hồ Chí Minh',
-      district: 'Quận 1',
-      ward: 'Phường Bến Nghé',
-    },
-    description: 'Hometown information',
+    example: 'Hồ Chí Minh',
+    description: 'Province/City',
   })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value) as HometownDto;
-      } catch {
-        return value as unknown as HometownDto;
-      }
-    }
-    return value as HometownDto;
-  })
-  @Type(() => HometownDto)
-  @IsObject()
+  @IsString()
   @IsNotEmpty()
-  hometown: HometownDto;
+  province: string;
+
+  @ApiProperty({
+    example: 'Quận 1',
+    description: 'District',
+  })
+  @IsString()
+  @IsNotEmpty()
+  district: string;
+
+  @ApiProperty({
+    example: 'Phường Bến Nghé',
+    description: 'Ward',
+  })
+  @IsString()
+  @IsNotEmpty()
+  ward: string;
+
+  @ApiProperty({
+    example: '123 Đường Nguyễn Huệ',
+    description: 'Detailed address',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  detailAddress?: string;
 
   @ApiProperty({
     description: 'Image file for resident (optional)',

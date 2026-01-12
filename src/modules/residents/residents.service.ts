@@ -89,7 +89,10 @@ export class ResidentsService {
       gender: createResidentDto.gender,
       phoneNumber: createResidentDto.phoneNumber,
       nationality: createResidentDto.nationality,
-      hometown: createResidentDto.hometown,
+      province: createResidentDto.province,
+      district: createResidentDto.district,
+      ward: createResidentDto.ward,
+      detailAddress: createResidentDto.detailAddress,
       accountId: savedAccount.id,
       imageUrl,
     });

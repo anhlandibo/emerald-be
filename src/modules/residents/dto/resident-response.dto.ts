@@ -78,19 +78,32 @@ export class ResidentResponseDto {
   nationality: string;
 
   @ApiProperty({
-    example: {
-      province: 'Hồ Chí Minh',
-      district: 'Quận 1',
-      ward: 'Phường Bến Nghé',
-    },
-    description: 'Hometown information',
+    example: 'Hồ Chí Minh',
+    description: 'Province/City',
   })
   @Expose()
-  hometown: {
-    province: string;
-    district: string;
-    ward: string;
-  };
+  province: string;
+
+  @ApiProperty({
+    example: 'Quận 1',
+    description: 'District',
+  })
+  @Expose()
+  district: string;
+
+  @ApiProperty({
+    example: 'Phường Bến Nghé',
+    description: 'Ward',
+  })
+  @Expose()
+  ward: string;
+
+  @ApiProperty({
+    example: '123 Đường Nguyễn Huệ',
+    description: 'Detailed address',
+  })
+  @Expose()
+  detailAddress: string;
 
   @ApiProperty({
     example: true,
