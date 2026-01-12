@@ -44,7 +44,7 @@ export class ResidentsService {
     });
 
     if (existingCitizen)
-      throw new HttpException('Citizen ID already exists', HttpStatus.CONFLICT);
+      throw new HttpException('Citizen ID đã tồn tại', HttpStatus.CONFLICT);
 
     // Check if email already exists
     const existingEmail = await this.accountRepository.findOne({
@@ -148,7 +148,7 @@ export class ResidentsService {
 
     if (!resident) {
       throw new HttpException(
-        `Resident with ID ${id} not found`,
+        `Resident với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -179,10 +179,7 @@ export class ResidentsService {
         updateResidentDto.citizenId,
       );
       if (existingCitizen) {
-        throw new HttpException(
-          'Citizen ID already exists',
-          HttpStatus.CONFLICT,
-        );
+        throw new HttpException('Citizen ID đã tồn tại', HttpStatus.CONFLICT);
       }
     }
 
@@ -203,10 +200,7 @@ export class ResidentsService {
           updateResidentDto.image = uploadResult.secure_url;
         }
       } catch (error) {
-        throw new HttpException(
-          'Failed to upload image',
-          HttpStatus.BAD_REQUEST,
-        );
+        throw new HttpException('Failed to upload ảnh', HttpStatus.BAD_REQUEST);
       }
     }
 
@@ -250,7 +244,7 @@ export class ResidentsService {
 
     if (residents.length === 0) {
       throw new HttpException(
-        'No residents found with provided IDs',
+        'Không tìm thấy cư dân với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -270,7 +264,7 @@ export class ResidentsService {
     }
 
     return {
-      message: `Successfully deleted ${residents.length} resident(s)`,
+      message: `Đã xóa thành công ${residents.length} cư dân`,
       deletedCount: residents.length,
     };
   }

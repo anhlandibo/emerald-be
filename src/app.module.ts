@@ -17,6 +17,8 @@ import { ServicesModule } from './modules/services/services.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { TechniciansModule } from './modules/technicians/technicians.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { FeesModule } from './modules/fees/fees.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -41,6 +43,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     BookingsModule,
     TechniciansModule,
     NotificationsModule,
+    FeesModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
