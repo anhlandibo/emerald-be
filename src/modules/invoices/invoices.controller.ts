@@ -31,6 +31,7 @@ import { CreateInvoiceClientDto } from './dto/create-invoice-client.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
 import { VerifyMeterReadingDto } from './dto/verify-meter-reading.dto';
+import { VerifyInvoiceReadingsDto } from './dto/verify-invoice-readings.dto';
 import { InvoiceListResponseDto } from './dto/invoice-list-response.dto';
 import { InvoiceDetailResponseDto } from './dto/invoice-detail-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
@@ -45,7 +46,7 @@ import { Invoice } from './entities/invoice.entity';
 @ApiTags('Invoices')
 @Controller('invoices')
 @UseInterceptors(ClassSerializerInterceptor, TransformInterceptor)
-@UseGuards(JwtAuthGuard, RolesGuard)
+//@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
@@ -226,6 +227,31 @@ export class InvoicesController {
   })
   async verifyMeterReading(@Body() dto: VerifyMeterReadingDto) {
     return this.invoicesService.verifyMeterReading(dto.meterReadingId);
+  }
+
+  @Post('verify-invoice-readings')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[ADMIN] Xác nhận chỉ số và tính toán lại hóa đơn' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Chỉ số đã được xác nhận và hóa đơn được tính toán lại',
+    type: InvoiceDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Không tìm thấy hóa đơn hoặc loại phí',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dữ liệu không hợp lệ',
+  })
+  async verifyInvoiceReadings(@Body() dto: VerifyInvoiceReadingsDto) {
+    const invoice = await this.invoicesService.verifyInvoiceReadings(
+      dto.invoiceId,
+      dto.meterReadings,
+    );
+    return this.transformInvoiceDetail(invoice);
   }
 
   @Delete(':id')

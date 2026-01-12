@@ -716,6 +716,220 @@ export class InvoicesService {
   }
 
   /**
+   * [ADMIN] Verify invoice readings and recalculate invoice
+   * Updates meter readings and recalculates invoice totals based on tiered pricing
+   */
+  async verifyInvoiceReadings(
+    invoiceId: number,
+    meterReadingUpdates: Array<{
+      feeTypeId: number;
+      newIndex: number;
+      oldIndex?: number;
+      imageProofUrl?: string;
+    }>,
+  ): Promise<Invoice> {
+    // Kiểm tra hóa đơn tồn tại
+    const invoice = await this.invoiceRepository.findOne({
+      where: { id: invoiceId },
+      relations: ['invoiceDetails', 'apartment'],
+    });
+
+    if (!invoice) {
+      throw new HttpException('Không tìm thấy hóa đơn', HttpStatus.NOT_FOUND);
+    }
+
+    // Cập nhật meter readings
+    const feeTypeMap = new Map<number, (typeof meterReadingUpdates)[0]>();
+    const meterReadingsToUpdate: MeterReading[] = [];
+
+    for (const update of meterReadingUpdates) {
+      // Kiểm tra fee type tồn tại
+      const fee = await this.feeRepository.findOne({
+        where: { id: update.feeTypeId },
+        relations: ['tiers'],
+      });
+
+      if (!fee) {
+        throw new HttpException(
+          `Không tìm thấy loại phí với ID ${update.feeTypeId}`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Kiểm tra fee là metered type
+      if (fee.type !== FeeType.METERED) {
+        throw new HttpException(
+          `Loại phí ${fee.name} không phải là phí đo lường`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      feeTypeMap.set(update.feeTypeId, update);
+
+      // Tìm hoặc tạo meter reading cho kỳ này
+      let meterReading = await this.meterReadingRepository.findOne({
+        where: {
+          apartmentId: invoice.apartment.id,
+          feeTypeId: update.feeTypeId,
+          billingMonth: invoice.period,
+        },
+      });
+
+      if (!meterReading) {
+        // Tạo mới nếu chưa tồn tại
+        const oldIndex =
+          update.oldIndex ??
+          (await this.getOldIndex(
+            invoice.apartment.id,
+            update.feeTypeId,
+            invoice.period,
+          ));
+
+        meterReading = this.meterReadingRepository.create({
+          apartmentId: invoice.apartment.id,
+          feeTypeId: update.feeTypeId,
+          readingDate: new Date(),
+          billingMonth: invoice.period,
+          oldIndex,
+          newIndex: update.newIndex,
+          usageAmount: update.newIndex - oldIndex,
+          isVerified: true,
+        });
+      } else {
+        // Cập nhật existing meter reading
+        if (update.oldIndex !== undefined) {
+          meterReading.oldIndex = update.oldIndex;
+        }
+        meterReading.newIndex = update.newIndex;
+        meterReading.usageAmount =
+          update.newIndex - Number(meterReading.oldIndex);
+        meterReading.isVerified = true;
+      }
+
+      // Kiểm tra chỉ số mới >= chỉ số cũ
+      if (meterReading.newIndex < Number(meterReading.oldIndex)) {
+        throw new HttpException(
+          `Chỉ số mới phải lớn hơn hoặc bằng chỉ số cũ (Fee: ${fee.name})`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      meterReadingsToUpdate.push(meterReading);
+    }
+
+    // Lưu meter readings
+    await this.meterReadingRepository.save(meterReadingsToUpdate);
+
+    // Recalculate invoice details
+    const newDetails: Partial<InvoiceDetail>[] = [];
+    let newTotalAmount = 0;
+
+    // Xử lý các metered fees (điện, nước)
+    for (const detail of invoice.invoiceDetails) {
+      const update = feeTypeMap.get(detail.feeTypeId);
+
+      if (update) {
+        // Lấy fee type với tiers
+        const fee = await this.feeRepository.findOne({
+          where: { id: detail.feeTypeId },
+          relations: ['tiers'],
+        });
+
+        const meterReading = meterReadingsToUpdate.find(
+          (mr) => mr.feeTypeId === detail.feeTypeId,
+        );
+
+        if (!fee || !meterReading) {
+          throw new HttpException(
+            'Lỗi tính toán hóa đơn: không tìm thấy loại phí hoặc chỉ số meter',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }
+
+        const usage = Number(meterReading.usageAmount);
+
+        if (fee.tiers && fee.tiers.length > 0) {
+          const result = this.calculateTieredPrice(usage, fee.tiers);
+          detail.totalPrice = Number(result.totalPrice);
+          detail.calculationBreakdown = result.breakdown;
+          detail.amount = usage;
+        } else {
+          // Nếu không có tiers, lấy unitPrice từ tiers[0]
+          const unitPrice = Number(fee.tiers?.[0]?.unitPrice || 0);
+          detail.totalPrice = usage * unitPrice;
+          detail.amount = usage;
+        }
+
+        newTotalAmount += detail.totalPrice;
+        newDetails.push(detail);
+      } else if (detail.feeType?.type === FeeType.METERED) {
+        // Metered fee không được update, xóa nó khỏi invoice
+        await this.invoiceDetailRepository.remove(detail);
+      } else {
+        // Fixed fees giữ nguyên
+        newTotalAmount += Number(detail.totalPrice);
+        newDetails.push(detail);
+      }
+    }
+
+    // Thêm các metered fees mới (nếu có)
+    for (const [feeTypeId, update] of feeTypeMap.entries()) {
+      const existingDetail = newDetails.find((d) => d.feeTypeId === feeTypeId);
+
+      if (!existingDetail) {
+        const fee = await this.feeRepository.findOne({
+          where: { id: feeTypeId },
+          relations: ['tiers'],
+        });
+
+        const meterReading = meterReadingsToUpdate.find(
+          (mr) => mr.feeTypeId === feeTypeId,
+        );
+
+        if (!fee || !meterReading) {
+          throw new HttpException(
+            'Lỗi tính toán hóa đơn: không tìm thấy loại phí hoặc chỉ số meter',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }
+
+        const usage = Number(meterReading.usageAmount);
+
+        if (fee.tiers && fee.tiers.length > 0) {
+          const result = this.calculateTieredPrice(usage, fee.tiers);
+
+          newDetails.push({
+            feeTypeId,
+            amount: usage,
+            unitPrice: undefined,
+            totalPrice: Number(result.totalPrice),
+            calculationBreakdown: result.breakdown,
+          });
+
+          newTotalAmount += result.totalPrice;
+        }
+      }
+    }
+
+    // Lưu updated details
+    for (const detail of newDetails) {
+      if (detail.id) {
+        await this.invoiceDetailRepository.save(detail);
+      } else {
+        const newDetail = this.invoiceDetailRepository.create({
+          invoiceId,
+          ...detail,
+        });
+        await this.invoiceDetailRepository.save(newDetail);
+      }
+    }
+
+    // Cập nhật invoice total amount
+    invoice.totalAmount = Number(newTotalAmount.toFixed(2));
+    return this.invoiceRepository.save(invoice);
+  }
+
+  /**
    * [ADMIN] Xóa mềm hóa đơn
    */
   async remove(id: number): Promise<void> {
