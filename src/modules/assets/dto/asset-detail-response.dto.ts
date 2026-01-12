@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { AssetStatus } from '../enums/asset-status.enum';
+import { TicketHistoryItemDto } from '../../maintenance-tickets/dto/ticket-history-item.dto';
 
 class AssetTypeInfoDto {
   @ApiProperty({
@@ -187,4 +188,12 @@ export class AssetDetailResponseDto {
   @Expose()
   @Type(() => AssetComputedDto)
   computed: AssetComputedDto;
+
+  @ApiProperty({
+    type: [TicketHistoryItemDto],
+    description: 'Recent maintenance history',
+  })
+  @Expose()
+  @Type(() => TicketHistoryItemDto)
+  recentHistory: TicketHistoryItemDto[];
 }
