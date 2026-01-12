@@ -1,0 +1,7 @@
+export enum NotiType {
+  MAINTENANCE = 'MAINTENANCE',
+  POLICY = 'POLICY',
+  GENERAL = 'GENERAL',
+  WARNING = 'WARNING',
+  OTHER = 'OTHER',
+}
