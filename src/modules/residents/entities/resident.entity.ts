@@ -48,12 +48,17 @@ export class Resident {
   @Column({ type: 'varchar', nullable: false })
   nationality: string;
 
-  @Column({ type: 'jsonb', nullable: false })
-  hometown: {
-    province: string;
-    district: string;
-    ward: string;
-  };
+  @Column({ type: 'varchar', nullable: false })
+  province: string;
+
+  @Column({ type: 'varchar', nullable: false })
+  district: string;
+
+  @Column({ type: 'varchar', nullable: false })
+  ward: string;
+
+  @Column({ type: 'text', nullable: true, name: 'detail_address' })
+  detailAddress: string;
 
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
