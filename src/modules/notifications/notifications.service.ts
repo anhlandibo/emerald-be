@@ -19,6 +19,10 @@ import { UserNotification } from './entities/user-notification.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { Resident } from '../residents/entities/resident.entity';
 
+interface NotificationWithStatus extends Notification {
+  userStatus?: UserNotification;
+}
+
 @Injectable()
 export class NotificationsService {
   constructor(
@@ -410,10 +414,12 @@ export class NotificationsService {
       relations: ['apartment'],
     });
 
-    const myBlocks = myApartments.map((ap) => ap.apartment.blockId);
+    const myBlocks = [
+      ...new Set(myApartments.map((ap) => ap.apartment.blockId)),
+    ];
     const myAptsInfo = myApartments.map((ap) => ({
       blockId: ap.apartment.blockId,
-      floor: ap.apartment.floor,
+      floor: ap.apartment.floor.toString(),
     }));
 
     const queryBuilder = this.notificationRepository
@@ -431,39 +437,57 @@ export class NotificationsService {
 
     queryBuilder.andWhere(
       new Brackets((qb) => {
-        qb.where('notification.targetScope = :all', { all: ScopeType.ALL })
-          .orWhere(
+        qb.where('notification.targetScope = :all', { all: ScopeType.ALL });
+
+        if (myBlocks.length > 0) {
+          qb.orWhere(
             '(notification.targetScope = :blockScope AND targetBlocks.blockId IN (:...myBlocks))',
             { blockScope: ScopeType.BLOCK, myBlocks },
-          )
-          .orWhere(
+          );
+        }
+
+        if (myAptsInfo.length > 0) {
+          qb.orWhere(
             new Brackets((floorQb) => {
               floorQb.where('notification.targetScope = :floorScope', {
                 floorScope: ScopeType.FLOOR,
               });
+
               myAptsInfo.forEach((info, index) => {
+                const bKey = `bId${index}`;
+                const fKey = `fNum${index}`;
+
+                // Trick SQL: Dùng dấu phẩy bao quanh để khớp chính xác số tầng trong simple-array (string)
+                // Ví dụ: ',1,2,5,' LIKE '%,5,%' sẽ đúng, còn '%,15,%' sẽ sai
                 floorQb.orWhere(
-                  `(targetBlocks.blockId = :bId${index} AND targetBlocks.targetFloorNumbers LIKE :fNum${index})`,
+                  `(targetBlocks.blockId = :${bKey} AND ',' || targetBlocks.targetFloorNumbers || ',' LIKE :${fKey})`,
                   {
-                    [`bId${index}`]: info.blockId,
-                    [`fNum${index}`]: `%${info.floor}%`,
+                    [bKey]: info.blockId,
+                    [fKey]: `%,${info.floor},%`,
                   },
                 );
               });
             }),
           );
+        }
       }),
     );
 
     queryBuilder.andWhere(
-      '(userStatus.isDeleted IS NULL OR userStatus.isDeleted = false)',
+      new Brackets((qb) => {
+        qb.where('userStatus.id IS NULL').orWhere(
+          'userStatus.isDeleted = false',
+        );
+      }),
     );
 
-    const notifications = await queryBuilder.getMany();
+    queryBuilder.orderBy('notification.createdAt', 'DESC');
 
-    // 5. Transform dữ liệu khớp với FE
+    const notifications =
+      (await queryBuilder.getMany()) as NotificationWithStatus[];
+
     return notifications.map((n) => {
-      const userStatus = (n as any).userStatus;
+      const userStatus = n.userStatus;
       return {
         id: n.id,
         title: n.title,

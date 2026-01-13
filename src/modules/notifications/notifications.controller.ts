@@ -20,6 +20,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiConsumes,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { NotificationsService } from './notifications.service';
@@ -34,12 +35,26 @@ import { plainToInstance } from 'class-transformer';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { CurrentUser } from 'src/decorators/user.decorator';
 import { UseGuards } from '@nestjs/common';
+import { ApiDoc } from 'src/decorators/api-doc.decorator';
 
 @ApiTags('Notifications')
+@ApiBearerAuth()
 @Controller('notifications')
 @UseInterceptors(ClassSerializerInterceptor, TransformInterceptor)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
+
+  @Get('mine')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'Lấy thông báo cho cư dân hiện tại',
+    description: 'Cư dân xem thông báo của mình',
+    auth: true,
+  })
+  async findMine(@CurrentUser('id') accountId: number) {
+    return this.notificationsService.findMine(accountId);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -191,12 +206,5 @@ export class NotificationsController {
   })
   async removeMany(@Body() deleteManyDto: DeleteManyNotificationsDto) {
     return this.notificationsService.removeMany(deleteManyDto.ids);
-  }
-
-  @Get('mine')
-  @UseGuards(AuthGuard)
-  @ApiOperation({ summary: 'Lấy thông báo cho cư dân hiện tại' })
-  async findMine(@CurrentUser('id') accountId: number) {
-    return this.notificationsService.findMine(accountId);
   }
 }
