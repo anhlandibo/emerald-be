@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+import { SupabaseStorageModule } from './modules/supabase-storage/supabase-storage.module';
 import getDatabaseConfig from './configs/database.config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccountsModule } from './modules/accounts/accounts.module';
@@ -27,6 +28,7 @@ import { ScheduleModule } from '@nestjs/schedule';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     CloudinaryModule,
+    SupabaseStorageModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: getDatabaseConfig,
