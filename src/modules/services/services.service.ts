@@ -16,7 +16,6 @@ import {
   SlotAvailabilityResponseDto,
 } from './dtos/service-response.dto';
 import { ServiceTypeLabels } from './enums/service-type.enum';
-import { Booking } from '../bookings/entities/booking.entity';
 import { BookingsService } from '../bookings/bookings.service';
 
 @Injectable()
@@ -28,7 +27,6 @@ export class ServicesService {
     private readonly slotRepository: Repository<SlotAvailability>,
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
-    @InjectRepository(Booking)
     private readonly bookingsService: BookingsService,
   ) {}
 
@@ -192,18 +190,19 @@ export class ServicesService {
         await manager.save(slot);
       }
 
-      const booking = manager.create(Booking, {
-        residentId: resident.id,
-        serviceId: service.id,
-        bookingDate: new Date(reserveSlotDto.bookingDate),
-        timestamps: uniqueSlots,
-        unitPrice: service.unitPrice,
-        totalPrice,
-      });
+      const booking = await this.bookingsService.createBooking(
+        {
+          residentId: resident.id,
+          serviceId: service.id,
+          bookingDate: reserveSlotDto.bookingDate,
+          timestamps: uniqueSlots,
+          unitPrice: service.unitPrice,
+          totalPrice,
+        },
+        manager,
+      );
 
-      const savedBooking = await manager.save(booking);
-
-      return this.bookingsService.transformToResponse(savedBooking);
+      return booking;
     });
   }
 

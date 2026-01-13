@@ -62,7 +62,7 @@ export class BookingResponseDto {
 
   @ApiProperty({ example: '2024-01-20' })
   @Expose()
-  bookingDate: string;
+  bookingDate: Date;
 
   @ApiProperty({
     type: [SlotItem],

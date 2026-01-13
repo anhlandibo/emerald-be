@@ -16,6 +16,7 @@ import {
   BookingStatus,
   BookingStatusLabels,
 } from './enums/booking-status.enum';
+import { EntityManager } from 'typeorm';
 
 @Injectable()
 export class BookingsService {
@@ -28,20 +29,27 @@ export class BookingsService {
     private readonly slotRepository: Repository<SlotAvailability>,
   ) {}
 
-  async createBooking(bookingData: {
-    residentId: number;
-    serviceId: number;
-    bookingDate: string;
-    timestamps: { startTime: string; endTime: string }[];
-    unitPrice: number;
-    totalPrice: number;
-  }): Promise<BookingResponseDto> {
-    const code = await this.generateBookingCode();
+  async createBooking(
+    bookingData: {
+      residentId: number;
+      serviceId: number;
+      bookingDate: string;
+      timestamps: { startTime: string; endTime: string }[];
+      unitPrice: number;
+      totalPrice: number;
+    },
+    manager?: EntityManager,
+  ): Promise<BookingResponseDto> {
+    const repo = manager
+      ? manager.getRepository(Booking)
+      : this.bookingRepository;
+
+    const code = await this.generateBookingCode(manager);
 
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
-    const booking = this.bookingRepository.create({
+    const booking = repo.create({
       code,
       residentId: bookingData.residentId,
       serviceId: bookingData.serviceId,
@@ -172,11 +180,15 @@ export class BookingsService {
     }
   }
 
-  private async generateBookingCode(): Promise<string> {
+  private async generateBookingCode(manager?: EntityManager): Promise<string> {
+    const repo = manager
+      ? manager.getRepository(Booking)
+      : this.bookingRepository;
+
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
 
-    const count = await this.bookingRepository.count({
+    const count = await repo.count({
       where: {
         code: Like(`BKG-${dateStr}-%`),
       },
@@ -205,7 +217,7 @@ export class BookingsService {
             phoneNumber: booking.resident.phoneNumber,
           }
         : null,
-      bookingDate: booking.bookingDate.toISOString().split('T')[0],
+      bookingDate: booking.bookingDate,
       timestamps: booking.timestamps,
       unitPrice: booking.unitPrice,
       totalPrice: booking.totalPrice,
