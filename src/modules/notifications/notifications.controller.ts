@@ -207,4 +207,42 @@ export class NotificationsController {
   async removeMany(@Body() deleteManyDto: DeleteManyNotificationsDto) {
     return this.notificationsService.removeMany(deleteManyDto.ids);
   }
+
+  @Patch(':id/toggle-read')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Bật/tắt trạng thái đã đọc của 1 thông báo' })
+  async toggleRead(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('id') accountId: number,
+  ) {
+    return this.notificationsService.toggleRead(id, accountId);
+  }
+
+  @Post('read-all')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đánh dấu tất cả thông báo là đã đọc' })
+  async markAllRead(@CurrentUser('id') accountId: number) {
+    return this.notificationsService.markAllRead(accountId);
+  }
+
+  @Delete(':id/hide')
+  @UseGuards(AuthGuard)
+  @ApiOperation({
+    summary: 'Cư dân ẩn (xóa) 1 thông báo khỏi danh sách của mình',
+  })
+  async hideNotification(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('id') accountId: number,
+  ) {
+    return this.notificationsService.softDeleteForUser(id, accountId);
+  }
+
+  @Post('hide-all')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cư dân ẩn tất cả thông báo hiện có' })
+  async hideAll(@CurrentUser('id') accountId: number) {
+    return this.notificationsService.hideAllForUser(accountId);
+  }
 }
