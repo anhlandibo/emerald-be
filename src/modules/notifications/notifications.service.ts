@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, In } from 'typeorm';
+import { Repository, In, Brackets } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { TargetBlock } from './entities/target-block.entity';
 import { Block } from '../blocks/entities/block.entity';
@@ -14,6 +14,14 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { ScopeType } from './enums/scope-type.enum';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { UserNotification } from './entities/user-notification.entity';
+import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
+import { Resident } from '../residents/entities/resident.entity';
+
+interface NotificationWithStatus extends Notification {
+  userStatus?: UserNotification;
+}
 import { SupabaseStorageService } from '../supabase-storage/supabase-storage.service';
 
 @Injectable()
@@ -25,6 +33,14 @@ export class NotificationsService {
     private readonly targetBlockRepository: Repository<TargetBlock>,
     @InjectRepository(Block)
     private readonly blockRepository: Repository<Block>,
+    private readonly cloudinaryService: CloudinaryService,
+
+    @InjectRepository(UserNotification)
+    private readonly userNotiRepository: Repository<UserNotification>,
+    @InjectRepository(Resident)
+    private readonly residentRepository: Repository<Resident>,
+    @InjectRepository(ApartmentResident)
+    private readonly aptResidentRepository: Repository<ApartmentResident>,
     private readonly supabaseStorageService: SupabaseStorageService,
   ) {}
 
@@ -373,5 +389,110 @@ export class NotificationsService {
       message: `Successfully deleted ${notifications.length} notification(s)`,
       deletedCount: notifications.length,
     };
+  }
+
+  async findMine(accountId: number) {
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
+    });
+    if (!resident) throw new NotFoundException('Resident not found');
+
+    const myApartments = await this.aptResidentRepository.find({
+      where: { residentId: resident.id },
+      relations: ['apartment'],
+    });
+
+    const myBlocks = [
+      ...new Set(myApartments.map((ap) => ap.apartment.blockId)),
+    ];
+    const myAptsInfo = myApartments.map((ap) => ({
+      blockId: ap.apartment.blockId,
+      floor: ap.apartment.floor.toString(),
+    }));
+
+    const queryBuilder = this.notificationRepository
+      .createQueryBuilder('notification')
+      .leftJoinAndSelect('notification.targetBlocks', 'targetBlocks')
+      .leftJoinAndSelect('targetBlocks.block', 'block')
+      .leftJoinAndMapOne(
+        'notification.userStatus',
+        UserNotification,
+        'userStatus',
+        'userStatus.notificationId = notification.id AND userStatus.accountId = :accountId',
+        { accountId },
+      )
+      .where('notification.isActive = :isActive', { isActive: true });
+
+    queryBuilder.andWhere(
+      new Brackets((qb) => {
+        qb.where('notification.targetScope = :all', { all: ScopeType.ALL });
+
+        if (myBlocks.length > 0) {
+          qb.orWhere(
+            '(notification.targetScope = :blockScope AND targetBlocks.blockId IN (:...myBlocks))',
+            { blockScope: ScopeType.BLOCK, myBlocks },
+          );
+        }
+
+        if (myAptsInfo.length > 0) {
+          qb.orWhere(
+            new Brackets((floorQb) => {
+              floorQb.where('notification.targetScope = :floorScope', {
+                floorScope: ScopeType.FLOOR,
+              });
+
+              myAptsInfo.forEach((info, index) => {
+                const bKey = `bId${index}`;
+                const fKey = `fNum${index}`;
+
+                // Trick SQL: Dùng dấu phẩy bao quanh để khớp chính xác số tầng trong simple-array (string)
+                // Ví dụ: ',1,2,5,' LIKE '%,5,%' sẽ đúng, còn '%,15,%' sẽ sai
+                floorQb.orWhere(
+                  `(targetBlocks.blockId = :${bKey} AND ',' || targetBlocks.targetFloorNumbers || ',' LIKE :${fKey})`,
+                  {
+                    [bKey]: info.blockId,
+                    [fKey]: `%,${info.floor},%`,
+                  },
+                );
+              });
+            }),
+          );
+        }
+      }),
+    );
+
+    queryBuilder.andWhere(
+      new Brackets((qb) => {
+        qb.where('userStatus.id IS NULL').orWhere(
+          'userStatus.isDeleted = false',
+        );
+      }),
+    );
+
+    queryBuilder.orderBy('notification.createdAt', 'DESC');
+
+    const notifications =
+      (await queryBuilder.getMany()) as NotificationWithStatus[];
+
+    return notifications.map((n) => {
+      const userStatus = n.userStatus;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        type: n.type,
+        is_urgent: n.isUrgent,
+        created_at: n.createdAt.toISOString(),
+        updated_at: n.updatedAt.toISOString(),
+        file_urls: n.fileUrls || [],
+        target_blocks:
+          n.targetBlocks?.map((tb) => ({
+            id: tb.blockId,
+            name: tb.block?.name || '',
+          })) || [],
+        channels: n.channels || [],
+        is_read: userStatus ? userStatus.isRead : false,
+      };
+    });
   }
 }

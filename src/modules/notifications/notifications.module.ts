@@ -6,11 +6,21 @@ import { Notification } from './entities/notification.entity';
 import { TargetBlock } from './entities/target-block.entity';
 import { Block } from '../blocks/entities/block.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { UserNotification } from './entities/user-notification.entity';
+import { Resident } from '../residents/entities/resident.entity';
+import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, TargetBlock, Block]),
+    TypeOrmModule.forFeature([
+      Notification,
+      TargetBlock,
+      Block,
+      UserNotification,
+      Resident,
+      ApartmentResident,
+    ]),
     CloudinaryModule,
     SupabaseStorageModule,
   ],

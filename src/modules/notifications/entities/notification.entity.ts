@@ -9,6 +9,7 @@ import {
 import { NotiType } from '../enums/noti-type.enum';
 import { ScopeType } from '../enums/scope-type.enum';
 import { TargetBlock } from './target-block.entity';
+import { UserNotification } from './user-notification.entity';
 
 @Entity('notifications')
 export class Notification {
@@ -63,4 +64,10 @@ export class Notification {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToMany(
+    () => UserNotification,
+    (userNotification) => userNotification.notification,
+  )
+  userNotifications: UserNotification[];
 }
