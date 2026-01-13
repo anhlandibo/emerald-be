@@ -31,6 +31,9 @@ import { NotificationDetailResponseDto } from './dto/notification-detail-respons
 import { DeleteManyNotificationsDto } from './dto/delete-many-notifications.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
+import { AuthGuard } from 'src/guards/auth.guard';
+import { CurrentUser } from 'src/decorators/user.decorator';
+import { UseGuards } from '@nestjs/common';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -188,5 +191,12 @@ export class NotificationsController {
   })
   async removeMany(@Body() deleteManyDto: DeleteManyNotificationsDto) {
     return this.notificationsService.removeMany(deleteManyDto.ids);
+  }
+
+  @Get('mine')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Lấy thông báo cho cư dân hiện tại' })
+  async findMine(@CurrentUser('id') accountId: number) {
+    return this.notificationsService.findMine(accountId);
   }
 }

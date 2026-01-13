@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, In } from 'typeorm';
+import { Repository, In, Brackets } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { TargetBlock } from './entities/target-block.entity';
 import { Block } from '../blocks/entities/block.entity';
@@ -15,6 +15,9 @@ import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { ScopeType } from './enums/scope-type.enum';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { UserNotification } from './entities/user-notification.entity';
+import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
+import { Resident } from '../residents/entities/resident.entity';
 
 @Injectable()
 export class NotificationsService {
@@ -26,6 +29,13 @@ export class NotificationsService {
     @InjectRepository(Block)
     private readonly blockRepository: Repository<Block>,
     private readonly cloudinaryService: CloudinaryService,
+
+    @InjectRepository(UserNotification)
+    private readonly userNotiRepository: Repository<UserNotification>,
+    @InjectRepository(Resident)
+    private readonly residentRepository: Repository<Resident>,
+    @InjectRepository(ApartmentResident)
+    private readonly aptResidentRepository: Repository<ApartmentResident>,
   ) {}
 
   async create(
@@ -387,5 +397,90 @@ export class NotificationsService {
       message: `Successfully deleted ${notifications.length} notification(s)`,
       deletedCount: notifications.length,
     };
+  }
+
+  async findMine(accountId: number) {
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
+    });
+    if (!resident) throw new NotFoundException('Resident not found');
+
+    const myApartments = await this.aptResidentRepository.find({
+      where: { residentId: resident.id },
+      relations: ['apartment'],
+    });
+
+    const myBlocks = myApartments.map((ap) => ap.apartment.blockId);
+    const myAptsInfo = myApartments.map((ap) => ({
+      blockId: ap.apartment.blockId,
+      floor: ap.apartment.floor,
+    }));
+
+    const queryBuilder = this.notificationRepository
+      .createQueryBuilder('notification')
+      .leftJoinAndSelect('notification.targetBlocks', 'targetBlocks')
+      .leftJoinAndSelect('targetBlocks.block', 'block')
+      .leftJoinAndMapOne(
+        'notification.userStatus',
+        UserNotification,
+        'userStatus',
+        'userStatus.notificationId = notification.id AND userStatus.accountId = :accountId',
+        { accountId },
+      )
+      .where('notification.isActive = :isActive', { isActive: true });
+
+    queryBuilder.andWhere(
+      new Brackets((qb) => {
+        qb.where('notification.targetScope = :all', { all: ScopeType.ALL })
+          .orWhere(
+            '(notification.targetScope = :blockScope AND targetBlocks.blockId IN (:...myBlocks))',
+            { blockScope: ScopeType.BLOCK, myBlocks },
+          )
+          .orWhere(
+            new Brackets((floorQb) => {
+              floorQb.where('notification.targetScope = :floorScope', {
+                floorScope: ScopeType.FLOOR,
+              });
+              myAptsInfo.forEach((info, index) => {
+                floorQb.orWhere(
+                  `(targetBlocks.blockId = :bId${index} AND targetBlocks.targetFloorNumbers LIKE :fNum${index})`,
+                  {
+                    [`bId${index}`]: info.blockId,
+                    [`fNum${index}`]: `%${info.floor}%`,
+                  },
+                );
+              });
+            }),
+          );
+      }),
+    );
+
+    queryBuilder.andWhere(
+      '(userStatus.isDeleted IS NULL OR userStatus.isDeleted = false)',
+    );
+
+    const notifications = await queryBuilder.getMany();
+
+    // 5. Transform dữ liệu khớp với FE
+    return notifications.map((n) => {
+      const userStatus = (n as any).userStatus;
+      return {
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        type: n.type,
+        is_urgent: n.isUrgent,
+        created_at: n.createdAt.toISOString(),
+        updated_at: n.updatedAt.toISOString(),
+        file_urls: n.fileUrls || [],
+        target_blocks:
+          n.targetBlocks?.map((tb) => ({
+            id: tb.blockId,
+            name: tb.block?.name || '',
+          })) || [],
+        channels: n.channels || [],
+        is_read: userStatus ? userStatus.isRead : false,
+      };
+    });
   }
 }
