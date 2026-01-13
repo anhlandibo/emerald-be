@@ -14,7 +14,7 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { ScopeType } from './enums/scope-type.enum';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { SupabaseStorageService } from '../supabase-storage/supabase-storage.service';
 
 @Injectable()
 export class NotificationsService {
@@ -25,7 +25,7 @@ export class NotificationsService {
     private readonly targetBlockRepository: Repository<TargetBlock>,
     @InjectRepository(Block)
     private readonly blockRepository: Repository<Block>,
-    private readonly cloudinaryService: CloudinaryService,
+    private readonly supabaseStorageService: SupabaseStorageService,
   ) {}
 
   async create(
@@ -92,19 +92,16 @@ export class NotificationsService {
       }
     }
 
-    // Upload files to Cloudinary if provided
+    // Upload files to Supabase Storage if provided
     let fileUrls: string[] = [];
     if (files && files.length > 0) {
       try {
-        const uploadPromises = files.map((file) =>
-          this.cloudinaryService.uploadFile(file),
+        fileUrls = await this.supabaseStorageService.uploadMultipleFiles(
+          files,
+          'notifications',
         );
-        const uploadResults = await Promise.all(uploadPromises);
-        fileUrls = uploadResults
-          .map((result) => (result?.secure_url as string) || '')
-          .filter((url) => url !== '');
       } catch (error) {
-        console.error('Cloudinary upload error:', error);
+        console.error('Supabase upload error:', error);
         throw new HttpException(
           `Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`,
           HttpStatus.INTERNAL_SERVER_ERROR,
@@ -179,8 +176,10 @@ export class NotificationsService {
       queryBuilder.andWhere('notification.isUrgent = :isUrgent', { isUrgent });
     }
 
-    // Order by created date
-    queryBuilder.orderBy('notification.createdAt', 'DESC');
+    // Order by isUrgent DESC, then by created date DESC
+    queryBuilder
+      .orderBy('notification.isUrgent', 'DESC')
+      .addOrderBy('notification.createdAt', 'DESC');
 
     const notifications = await queryBuilder.getMany();
 
@@ -272,13 +271,11 @@ export class NotificationsService {
     // Upload new files if provided
     if (files && files.length > 0) {
       try {
-        const uploadPromises = files.map((file) =>
-          this.cloudinaryService.uploadFile(file),
-        );
-        const uploadResults = await Promise.all(uploadPromises);
-        const newFileUrls = uploadResults
-          .map((result) => (result?.secure_url as string) || '')
-          .filter((url) => url !== '');
+        const newFileUrls =
+          await this.supabaseStorageService.uploadMultipleFiles(
+            files,
+            'notifications',
+          );
 
         // Append new file URLs to existing ones
         notification.fileUrls = [
@@ -286,7 +283,7 @@ export class NotificationsService {
           ...newFileUrls,
         ];
       } catch (error) {
-        console.error('Cloudinary upload error:', error);
+        console.error('Supabase upload error:', error);
         throw new HttpException(
           `Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`,
           HttpStatus.INTERNAL_SERVER_ERROR,
@@ -327,20 +324,15 @@ export class NotificationsService {
   async remove(id: number) {
     const notification = await this.findOne(id);
 
-    // Delete files from Cloudinary if they exist
+    // Delete files from Supabase Storage if they exist
     if (notification.fileUrls && notification.fileUrls.length > 0) {
       try {
-        const deletePromises = notification.fileUrls.map((url) => {
-          // Extract public_id from Cloudinary URL
-          const urlParts = url.split('/');
-          const fileNameWithExt = urlParts[urlParts.length - 1];
-          const publicId = fileNameWithExt.split('.')[0];
-          return this.cloudinaryService.deleteFile(publicId);
-        });
-        await Promise.allSettled(deletePromises); // Use allSettled to not fail if some deletions fail
+        await this.supabaseStorageService.deleteMultipleFiles(
+          notification.fileUrls,
+        );
       } catch (error) {
         // Log error but don't fail the deletion
-        console.error('Failed to delete some files from Cloudinary:', error);
+        console.error('Failed to delete some files from Supabase:', error);
       }
     }
 
@@ -362,18 +354,12 @@ export class NotificationsService {
     // Collect all file URLs to delete
     const allFileUrls = notifications.flatMap((n) => n.fileUrls || []);
 
-    // Delete files from Cloudinary
+    // Delete files from Supabase Storage
     if (allFileUrls.length > 0) {
       try {
-        const deletePromises = allFileUrls.map((url) => {
-          const urlParts = url.split('/');
-          const fileNameWithExt = urlParts[urlParts.length - 1];
-          const publicId = fileNameWithExt.split('.')[0];
-          return this.cloudinaryService.deleteFile(publicId);
-        });
-        await Promise.allSettled(deletePromises);
+        await this.supabaseStorageService.deleteMultipleFiles(allFileUrls);
       } catch (error) {
-        console.error('Failed to delete some files from Cloudinary:', error);
+        console.error('Failed to delete some files from Supabase:', error);
       }
     }
 

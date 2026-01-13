@@ -6,11 +6,13 @@ import { Notification } from './entities/notification.entity';
 import { TargetBlock } from './entities/target-block.entity';
 import { Block } from '../blocks/entities/block.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Notification, TargetBlock, Block]),
     CloudinaryModule,
+    SupabaseStorageModule,
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService],
