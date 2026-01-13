@@ -60,8 +60,14 @@ export class ServicesService {
     const service = await this.findOne(serviceId);
 
     const date = new Date(checkSlotDto.date);
+
+    console.log('date: ', date);
+
     const startOfDay = new Date(date.setHours(0, 0, 0, 0));
     const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+
+    console.log('startOfDay: ', startOfDay);
+    console.log('endOfDay: ', endOfDay);
 
     const existingSlots = await this.slotRepository.find({
       where: {
@@ -71,12 +77,16 @@ export class ServicesService {
       order: { startTime: 'ASC' },
     });
 
+    console.log('existingSlots: ', existingSlots);
+
     const allPossibleSlots = this.generateTimeSlots(
       checkSlotDto.date,
       service.openHour,
       service.closeHour,
       service.unitTimeBlock,
     );
+
+    console.log('allPossibleSlots: ', allPossibleSlots);
 
     const result: SlotAvailabilityResponseDto[] = allPossibleSlots.map(
       (slot) => {
@@ -212,13 +222,28 @@ export class ServicesService {
     closeHour: string,
     unitTimeBlock: number,
   ): { startTime: Date; endTime: Date }[] {
+    console.log('(generate) date: ', date);
+    console.log('(generate) openHour: ', openHour);
+    console.log('(generate) closeHour: ', closeHour);
+    console.log('(generate) unitTimeBlock: ', unitTimeBlock);
+
     const slots: { startTime: Date; endTime: Date }[] = [];
 
     const [openH, openM] = openHour.split(':').map(Number);
     const [closeH, closeM] = closeHour.split(':').map(Number);
 
-    let currentTime = new Date(`${date}T${openHour}:00`);
-    const endTime = new Date(`${date}T${closeHour}:00`);
+    const formattedOpen = `${openH.toString().padStart(2, '0')}:${openM.toString().padStart(2, '0')}`;
+    const formattedClose = `${closeH.toString().padStart(2, '0')}:${closeM.toString().padStart(2, '0')}`;
+
+    console.log('currentTime:', formattedOpen);
+    console.log('endTime:', formattedClose);
+
+    let currentTime = new Date(`${date}T${formattedOpen}:00`);
+    const endTime = new Date(`${date}T${formattedClose}:00`);
+
+    console.log('currentTime:', currentTime);
+    console.log('endTime:', endTime);
+    console.log('currentTime < endTime:', currentTime < endTime);
 
     while (currentTime < endTime) {
       const slotEnd = new Date(currentTime.getTime() + unitTimeBlock * 60000);
