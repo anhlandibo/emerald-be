@@ -495,4 +495,77 @@ export class NotificationsService {
       };
     });
   }
+
+  async toggleRead(notificationId: number, accountId: number) {
+    await this.findOne(notificationId);
+
+    let status = await this.userNotiRepository.findOne({
+      where: { notificationId, accountId },
+    });
+
+    if (!status) {
+      status = this.userNotiRepository.create({
+        notificationId,
+        accountId,
+        isRead: true,
+      });
+    } else {
+      status.isRead = !status.isRead;
+    }
+
+    return this.userNotiRepository.save(status);
+  }
+
+  async softDeleteForUser(notificationId: number, accountId: number) {
+    let status = await this.userNotiRepository.findOne({
+      where: { notificationId, accountId },
+    });
+
+    if (!status) {
+      status = this.userNotiRepository.create({
+        notificationId,
+        accountId,
+        isDeleted: true,
+      });
+    } else {
+      status.isDeleted = true;
+    }
+
+    await this.userNotiRepository.save(status);
+    return { message: 'Đã ẩn thông báo thành công' };
+  }
+
+  async markAllRead(accountId: number) {
+    const myNotis = await this.findMine(accountId);
+    const notReadIds = myNotis.filter((n) => !n.is_read).map((n) => n.id);
+
+    if (notReadIds.length === 0) return { message: 'Tất cả đã được đọc' };
+
+    const savePromises = notReadIds.map(async (id) => {
+      return this.userNotiRepository.upsert(
+        { accountId, notificationId: id, isRead: true },
+        ['accountId', 'notificationId'], // Dựa vào Unique Index đã tạo trong Migration
+      );
+    });
+
+    await Promise.all(savePromises);
+    return { message: `Đã đánh dấu đọc ${notReadIds.length} thông báo` };
+  }
+
+  async hideAllForUser(accountId: number) {
+    const myNotis = await this.findMine(accountId);
+    const ids = myNotis.map((n) => n.id);
+
+    if (ids.length === 0) return { message: 'Danh sách trống' };
+
+    const savePromises = ids.map(async (id) => {
+      return this.userNotiRepository.upsert(
+        { accountId, notificationId: id, isDeleted: true },
+        ['accountId', 'notificationId'],
+      );
+    });
+
+    await Promise.all(savePromises);
+    return { message: 'Đã ẩn toàn bộ thông báo' };
+  }
 }
