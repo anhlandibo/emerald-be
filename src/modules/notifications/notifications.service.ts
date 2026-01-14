@@ -56,8 +56,9 @@ export class NotificationsService {
       (!createNotificationDto.targetBlocks ||
         createNotificationDto.targetBlocks.length === 0)
     ) {
-      throw new BadRequestException(
-        'Target blocks are required when scope is BLOCK or FLOOR',
+      throw new HttpException(
+        'Các block mục tiêu là bắt buộc khi phạm vi là BLOCK hoặc FLOOR',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -71,7 +72,10 @@ export class NotificationsService {
       });
 
       if (blocks.length !== blockIds.length) {
-        throw new NotFoundException('One or more blocks not found or inactive');
+        throw new HttpException(
+          'Không tìm thấy một hoặc nhiều block hoặc block không hoạt động',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       // Validate floor numbers for FLOOR scope
@@ -79,8 +83,9 @@ export class NotificationsService {
         for (const targetBlock of createNotificationDto.targetBlocks) {
           const block = blocks.find((b) => b.id === targetBlock.blockId);
           if (!block) {
-            throw new NotFoundException(
-              `Block with ID ${targetBlock.blockId} not found`,
+            throw new HttpException(
+              `Không tìm thấy block với ID ${targetBlock.blockId}`,
+              HttpStatus.NOT_FOUND,
             );
           }
 
@@ -88,8 +93,9 @@ export class NotificationsService {
             !targetBlock.targetFloorNumbers ||
             targetBlock.targetFloorNumbers.length === 0
           ) {
-            throw new BadRequestException(
-              `Target floor numbers are required for block ${block.name} when scope is FLOOR`,
+            throw new HttpException(
+              `Các số tầng mục tiêu là bắt buộc đối với block ${block.name} khi phạm vi là FLOOR`,
+              HttpStatus.BAD_REQUEST,
             );
           }
 
@@ -99,8 +105,9 @@ export class NotificationsService {
               (floor) => floor < 0 || floor > block.totalFloors,
             );
             if (invalidFloors.length > 0) {
-              throw new BadRequestException(
-                `Invalid floor numbers [${invalidFloors.join(', ')}] for block ${block.name}. Valid range: 0-${block.totalFloors}`,
+              throw new HttpException(
+                `Các số tầng không hợp lệ [${invalidFloors.join(', ')}] cho block ${block.name}. Phạm vi hợp lệ: 0-${block.totalFloors}`,
+                HttpStatus.BAD_REQUEST,
               );
             }
           }
@@ -119,7 +126,7 @@ export class NotificationsService {
       } catch (error) {
         console.error('Supabase upload error:', error);
         throw new HttpException(
-          `Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Không thể tải lên các tệp: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`,
           HttpStatus.INTERNAL_SERVER_ERROR,
         );
       }
@@ -134,6 +141,9 @@ export class NotificationsService {
       fileUrls: fileUrls,
       targetScope: createNotificationDto.targetScope,
       channels: createNotificationDto.channels,
+      publishedAt: createNotificationDto.publishedAt
+        ? new Date(createNotificationDto.publishedAt)
+        : null,
     });
 
     const savedNotification =
@@ -209,7 +219,10 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new NotFoundException(`Notification with ID ${id} not found`);
+      throw new HttpException(
+        `Không tìm thấy thông báo với ID ${id}`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return notification;
@@ -222,6 +235,17 @@ export class NotificationsService {
   ) {
     const notification = await this.findOne(id);
 
+    // Check if notification is already published (past publishedAt time)
+    if (notification.publishedAt) {
+      const now = new Date();
+      if (now > notification.publishedAt) {
+        throw new HttpException(
+          'Không thể chỉnh sửa thông báo đã được phát hành',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
     // Validate target blocks if scope is being updated
     if (updateNotificationDto.targetScope) {
       if (
@@ -230,8 +254,9 @@ export class NotificationsService {
         (!updateNotificationDto.targetBlocks ||
           updateNotificationDto.targetBlocks.length === 0)
       ) {
-        throw new BadRequestException(
-          'Target blocks are required when scope is BLOCK or FLOOR',
+        throw new HttpException(
+          'Các block là bắt buộc khi phạm vi là BLOCK hoặc FLOOR',
+          HttpStatus.BAD_REQUEST,
         );
       }
     }
@@ -246,7 +271,10 @@ export class NotificationsService {
       });
 
       if (blocks.length !== blockIds.length) {
-        throw new NotFoundException('One or more blocks not found or inactive');
+        throw new HttpException(
+          'Một hoặc nhiều block không tồn tại hoặc không hoạt động',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       // Validate floor numbers for FLOOR scope
@@ -256,8 +284,9 @@ export class NotificationsService {
         for (const targetBlock of updateNotificationDto.targetBlocks) {
           const block = blocks.find((b) => b.id === targetBlock.blockId);
           if (!block) {
-            throw new NotFoundException(
-              `Block with ID ${targetBlock.blockId} not found`,
+            throw new HttpException(
+              `Block với ID ${targetBlock.blockId} không tồn tại`,
+              HttpStatus.NOT_FOUND,
             );
           }
 
@@ -265,8 +294,9 @@ export class NotificationsService {
             !targetBlock.targetFloorNumbers ||
             targetBlock.targetFloorNumbers.length === 0
           ) {
-            throw new BadRequestException(
-              `Target floor numbers are required for block ${block.name} when scope is FLOOR`,
+            throw new HttpException(
+              `Các số tầng mục tiêu là bắt buộc đối với block ${block.name} khi phạm vi là FLOOR`,
+              HttpStatus.BAD_REQUEST,
             );
           }
 
@@ -275,8 +305,9 @@ export class NotificationsService {
               (floor) => floor < 0 || floor > block.totalFloors,
             );
             if (invalidFloors.length > 0) {
-              throw new BadRequestException(
-                `Invalid floor numbers [${invalidFloors.join(', ')}] for block ${block.name}. Valid range: 0-${block.totalFloors}`,
+              throw new HttpException(
+                `Các số tầng không hợp lệ [${invalidFloors.join(', ')}] đối với block ${block.name}. Phạm vi hợp lệ: 0-${block.totalFloors}`,
+                HttpStatus.BAD_REQUEST,
               );
             }
           }
@@ -301,7 +332,7 @@ export class NotificationsService {
       } catch (error) {
         console.error('Supabase upload error:', error);
         throw new HttpException(
-          `Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Không thể tải lên các tệp: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`,
           HttpStatus.INTERNAL_SERVER_ERROR,
         );
       }
@@ -312,6 +343,9 @@ export class NotificationsService {
       ...updateNotificationDto,
       fileUrls: notification.fileUrls, // Keep updated fileUrls
       targetBlocks: undefined, // Don't update relations directly
+      publishedAt: updateNotificationDto.publishedAt
+        ? new Date(updateNotificationDto.publishedAt)
+        : notification.publishedAt,
     });
 
     await this.notificationRepository.save(notification);
@@ -364,7 +398,10 @@ export class NotificationsService {
     });
 
     if (notifications.length === 0) {
-      throw new NotFoundException('No notifications found with provided IDs');
+      throw new HttpException(
+        'Không tìm thấy thông báo với các ID đã cung cấp',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // Collect all file URLs to delete
@@ -395,7 +432,8 @@ export class NotificationsService {
     const resident = await this.residentRepository.findOne({
       where: { accountId, isActive: true },
     });
-    if (!resident) throw new NotFoundException('Resident not found');
+    if (!resident)
+      throw new HttpException('Không tìm thấy cư dân', HttpStatus.NOT_FOUND);
 
     const myApartments = await this.aptResidentRepository.find({
       where: { residentId: resident.id },

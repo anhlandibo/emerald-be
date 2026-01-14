@@ -59,6 +59,9 @@ export class Notification {
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
 
+  @Column({ type: 'timestamp', nullable: true, name: 'published_at' })
+  publishedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -39,7 +39,7 @@ export class AssetsService {
 
     if (!assetType) {
       throw new HttpException(
-        `Asset type with ID ${createAssetDto.typeId} not found`,
+        `Asset type với ID ${createAssetDto.typeId} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -51,7 +51,7 @@ export class AssetsService {
 
     if (!block) {
       throw new HttpException(
-        `Block with ID ${createAssetDto.blockId} not found`,
+        `Block với ID ${createAssetDto.blockId} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -167,7 +167,7 @@ export class AssetsService {
 
     if (!asset) {
       throw new HttpException(
-        `Asset with ID ${id} not found`,
+        `Asset với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -272,7 +272,7 @@ export class AssetsService {
 
     if (!asset) {
       throw new HttpException(
-        `Asset with ID ${id} not found`,
+        `Asset với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -285,7 +285,7 @@ export class AssetsService {
 
       if (!assetType) {
         throw new HttpException(
-          `Asset type with ID ${updateAssetDto.typeId} not found`,
+          `Asset type với ID ${updateAssetDto.typeId} không tồn tại`,
           HttpStatus.NOT_FOUND,
         );
       }
@@ -299,7 +299,7 @@ export class AssetsService {
 
       if (!block) {
         throw new HttpException(
-          `Block with ID ${updateAssetDto.blockId} not found`,
+          `Block với ID ${updateAssetDto.blockId} không tồn tại`,
           HttpStatus.NOT_FOUND,
         );
       }
@@ -396,7 +396,7 @@ export class AssetsService {
 
     if (!asset) {
       throw new HttpException(
-        `Asset with ID ${id} not found`,
+        `Asset với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -405,7 +405,7 @@ export class AssetsService {
     asset.isActive = false;
     await this.assetRepository.save(asset);
 
-    return { message: 'Asset deleted successfully' };
+    return { message: 'Xóa tài sản thành công' };
   }
 
   async removeMany(ids: number[]) {
@@ -415,7 +415,7 @@ export class AssetsService {
 
     if (assets.length === 0) {
       throw new HttpException(
-        'No assets found with provided IDs',
+        'Không tìm thấy tài sản nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -424,7 +424,7 @@ export class AssetsService {
     await this.assetRepository.update({ id: In(ids) }, { isActive: false });
 
     return {
-      message: `Successfully deleted ${assets.length} asset(s)`,
+      message: `Đã xóa thành công ${assets.length} tài sản`,
       deletedCount: assets.length,
     };
   }

@@ -32,7 +32,7 @@ export class BlocksService {
     });
 
     if (existingBlock) {
-      throw new HttpException('Block name already exists', HttpStatus.CONFLICT);
+      throw new HttpException('Tên block đã tồn tại', HttpStatus.CONFLICT);
     }
 
     // Calculate total floors from apartments if not provided
@@ -143,7 +143,7 @@ export class BlocksService {
 
     if (!block) {
       throw new HttpException(
-        `Block with ID ${id} not found`,
+        `Block với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -177,7 +177,7 @@ export class BlocksService {
 
     if (!blockData) {
       throw new HttpException(
-        `Block with ID ${id} not found`,
+        `Block với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -192,10 +192,7 @@ export class BlocksService {
       });
 
       if (existingBlock) {
-        throw new HttpException(
-          'Block name already exists',
-          HttpStatus.CONFLICT,
-        );
+        throw new HttpException('Tên block đã tồn tại', HttpStatus.CONFLICT);
       }
 
       blockData.name = updateBlockDto.buildingName;
@@ -247,7 +244,7 @@ export class BlocksService {
 
     if (!block) {
       throw new HttpException(
-        `Block with ID ${id} not found`,
+        `Block với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -259,7 +256,7 @@ export class BlocksService {
     // Also soft delete all apartments in this block
     await this.apartmentRepository.update({ blockId: id }, { isActive: false });
 
-    return { message: 'Block deleted successfully' };
+    return { message: 'Xóa block thành công' };
   }
 
   async removeMany(ids: number[]) {
@@ -269,7 +266,7 @@ export class BlocksService {
 
     if (blocks.length === 0) {
       throw new HttpException(
-        'No blocks found with provided IDs',
+        'Không tìm thấy block nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -284,7 +281,7 @@ export class BlocksService {
     );
 
     return {
-      message: `Successfully deleted ${blocks.length} block(s)`,
+      message: `Xóa thành công ${blocks.length} block(s)`,
       deletedCount: blocks.length,
     };
   }

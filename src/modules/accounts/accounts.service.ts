@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, FindOptionsWhere, In } from 'typeorm';
@@ -22,7 +24,8 @@ export class AccountsService {
       where: { email: createAccountDto.email },
     });
 
-    if (count > 0) throw new ConflictException('Email already exists');
+    if (count > 0)
+      throw new HttpException('Email đã tồn tại', HttpStatus.CONFLICT);
 
     const account = this.accountRepository.create(createAccountDto);
     return this.accountRepository.save(account);
@@ -50,7 +53,10 @@ export class AccountsService {
       where: { id, isActive: true },
     });
     if (!account) {
-      throw new NotFoundException(`Account with ID ${id} not found`);
+      throw new HttpException(
+        `Tài khoản với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
     }
     return account;
   }
@@ -66,7 +72,7 @@ export class AccountsService {
     if (updateAccountDto.email && updateAccountDto.email !== account.email) {
       const existingEmail = await this.findByEmail(updateAccountDto.email);
       if (existingEmail) {
-        throw new ConflictException('Email already exists');
+        throw new HttpException('Email đã tồn tại', HttpStatus.CONFLICT);
       }
     }
 
@@ -86,14 +92,17 @@ export class AccountsService {
     });
 
     if (accounts.length === 0) {
-      throw new NotFoundException('No accounts found with provided IDs');
+      throw new HttpException(
+        'Không tìm thấy tài khoản nào với các ID đã cung cấp',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // Soft delete all accounts
     await this.accountRepository.update({ id: In(ids) }, { isActive: false });
 
     return {
-      message: `Successfully deleted ${accounts.length} account(s)`,
+      message: `Đã xóa thành công ${accounts.length} tài khoản`,
       deletedCount: accounts.length,
     };
   }
@@ -103,7 +112,10 @@ export class AccountsService {
       where: { id, isActive: false },
     });
     if (!account) {
-      throw new NotFoundException(`Deleted account with ID ${id} not found`);
+      throw new HttpException(
+        `Tài khoản với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
     }
     account.isActive = true;
     return this.accountRepository.save(account);
