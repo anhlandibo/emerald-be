@@ -286,11 +286,35 @@ export class BlocksService {
     };
   }
 
+  async hasResidents(id: number) {
+    // Check if block exists and is active
+    const block = await this.blockRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!block) {
+      throw new HttpException('Block không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Count residents in this block through apartments
+    const residentCount = await this.apartmentRepository
+      .createQueryBuilder('apartment')
+      .innerJoin('apartment.apartmentResidents', 'apartmentResident')
+      .where('apartment.blockId = :blockId', { blockId: id })
+      .andWhere('apartment.isActive = :isActive', { isActive: true })
+      .select('COUNT(DISTINCT apartmentResident.residentId)', 'count')
+      .getRawOne();
+
+    return {
+      hasResidents: residentCount && parseInt(residentCount.count, 10) > 0,
+    };
+  }
+
   private getStatusLabel(status: BlockStatus): string {
     const statusMap = {
-      [BlockStatus.OPERATING]: 'Đang vận hành',
-      [BlockStatus.UNDER_CONSTRUCTION]: 'Đang xây dựng',
-      [BlockStatus.UNDER_MAINTENANCE]: 'Đang bảo trì',
+      [BlockStatus.OPERATING]: 'OPERATING',
+      [BlockStatus.UNDER_CONSTRUCTION]: 'UNDER_CONSTRUCTION',
+      [BlockStatus.UNDER_MAINTENANCE]: 'UNDER_MAINTENANCE',
     };
     return statusMap[status] || status;
   }
