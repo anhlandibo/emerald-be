@@ -20,8 +20,10 @@ import { UpdateBlockDto } from './dto/update-block.dto';
 import { QueryBlockDto } from './dto/query-block.dto';
 import { BlockListResponseDto } from './dto/block-list-response.dto';
 import { BlockDetailResponseDto } from './dto/block-detail-response.dto';
+import { BlockHasResidentsResponseDto } from './dto/block-has-residents-response.dto';
 import { DeleteManyBlocksDto } from './dto/delete-many-blocks.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
+import { plainToInstance } from 'class-transformer';
 
 @ApiTags('Blocks')
 @Controller('blocks')
@@ -59,6 +61,28 @@ export class BlocksController {
   })
   async findAll(@Query() queryBlockDto: QueryBlockDto) {
     return this.blocksService.findAll(queryBlockDto);
+  }
+
+  @Get(':id/has-residents')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check if a block has any residents' })
+  @ApiParam({
+    name: 'id',
+    description: 'Block ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Block resident status retrieved successfully',
+    type: BlockHasResidentsResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Block not found',
+  })
+  async hasResidents(@Param('id', ParseIntPipe) id: number) {
+    const result = await this.blocksService.hasResidents(id);
+    return plainToInstance(BlockHasResidentsResponseDto, result);
   }
 
   @Get(':id')
