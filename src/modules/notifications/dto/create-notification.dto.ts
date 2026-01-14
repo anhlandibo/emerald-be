@@ -12,6 +12,7 @@ import {
   IsInt,
   ArrayMinSize,
   Allow,
+  IsDateString,
 } from 'class-validator';
 import { NotiType } from '../enums/noti-type.enum';
 import { ScopeType } from '../enums/scope-type.enum';
@@ -175,4 +176,18 @@ export class CreateNotificationDto {
   })
   @IsOptional()
   files?: Express.Multer.File[];
+
+  @ApiProperty({
+    example: '2025-11-24T11:30:00Z',
+    description:
+      'Publication date time (notification will be editable until this time)',
+    required: false,
+  })
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    return value;
+  })
+  @IsDateString()
+  @IsOptional()
+  publishedAt?: string;
 }

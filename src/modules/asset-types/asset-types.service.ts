@@ -27,7 +27,7 @@ export class AssetTypesService {
 
     if (existingAssetType) {
       throw new HttpException(
-        'Asset type name already exists',
+        'Tên loại tài sản đã tồn tại',
         HttpStatus.CONFLICT,
       );
     }
@@ -61,7 +61,7 @@ export class AssetTypesService {
 
     if (!assetType) {
       throw new HttpException(
-        `Asset type with ID ${id} not found`,
+        `Loại tài sản với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -76,7 +76,7 @@ export class AssetTypesService {
 
     if (!assetType) {
       throw new HttpException(
-        `Asset type with ID ${id} not found`,
+        `Loại tài sản với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -89,7 +89,7 @@ export class AssetTypesService {
 
       if (existingAssetType) {
         throw new HttpException(
-          'Asset type name already exists',
+          'Tên loại tài sản đã tồn tại',
           HttpStatus.CONFLICT,
         );
       }
@@ -106,7 +106,7 @@ export class AssetTypesService {
 
     if (!assetType) {
       throw new HttpException(
-        `Asset type with ID ${id} not found`,
+        `Loại tài sản với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -125,7 +125,7 @@ export class AssetTypesService {
 
     if (assetTypes.length === 0) {
       throw new HttpException(
-        'No asset types found with provided IDs',
+        'Không tìm thấy loại tài sản nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -134,7 +134,7 @@ export class AssetTypesService {
     await this.assetTypeRepository.update({ id: In(ids) }, { isActive: false });
 
     return {
-      message: `Successfully deleted ${assetTypes.length} asset type(s)`,
+      message: `Đã xóa thành công ${assetTypes.length} loại tài sản`,
       deletedCount: assetTypes.length,
     };
   }

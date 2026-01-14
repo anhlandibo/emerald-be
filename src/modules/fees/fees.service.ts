@@ -24,7 +24,7 @@ export class FeesService {
     });
 
     if (existingFee) {
-      throw new HttpException('Fee name already exists', HttpStatus.CONFLICT);
+      throw new HttpException('Fee name đã tồn tại', HttpStatus.CONFLICT);
     }
 
     // Validate tiers if provided
@@ -103,7 +103,7 @@ export class FeesService {
 
     if (!fee) {
       throw new HttpException(
-        `Fee with ID ${id} not found`,
+        `Fee với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -140,7 +140,7 @@ export class FeesService {
 
     if (!fee) {
       throw new HttpException(
-        `Fee with ID ${id} not found`,
+        `Fee với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -152,7 +152,7 @@ export class FeesService {
       });
 
       if (existingFee) {
-        throw new HttpException('Fee name already exists', HttpStatus.CONFLICT);
+        throw new HttpException('Tên phí đã tồn tại', HttpStatus.CONFLICT);
       }
     }
 
@@ -201,7 +201,7 @@ export class FeesService {
 
     if (!fee) {
       throw new HttpException(
-        `Fee with ID ${id} not found`,
+        `Fee với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -223,7 +223,7 @@ export class FeesService {
 
     if (fees.length === 0) {
       throw new HttpException(
-        'No fees found with provided IDs',
+        'Không tìm thấy phí nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -256,7 +256,7 @@ export class FeesService {
       // Check if fromValue is negative
       if (Number(currentTier.fromValue) < 0) {
         throw new HttpException(
-          `Tier "${currentTier.name}": fromValue cannot be negative`,
+          `Tier "${currentTier.name}": fromValue không được âm`,
           HttpStatus.BAD_REQUEST,
         );
       }
@@ -268,7 +268,7 @@ export class FeesService {
         Number(currentTier.toValue) <= Number(currentTier.fromValue)
       ) {
         throw new HttpException(
-          `Tier "${currentTier.name}": toValue must be greater than fromValue`,
+          `Tier "${currentTier.name}": toValue phải lớn hơn fromValue`,
           HttpStatus.BAD_REQUEST,
         );
       }
@@ -276,7 +276,7 @@ export class FeesService {
       // Check if unitPrice is non-negative
       if (Number(currentTier.unitPrice) < 0) {
         throw new HttpException(
-          `Tier "${currentTier.name}": unitPrice cannot be negative`,
+          `Tier "${currentTier.name}": unitPrice không được âm`,
           HttpStatus.BAD_REQUEST,
         );
       }
@@ -288,7 +288,7 @@ export class FeesService {
         // Current tier should have a toValue if it's not the last tier
         if (currentTier.toValue === null || currentTier.toValue === undefined) {
           throw new HttpException(
-            `Tier "${currentTier.name}": Only the last tier can have null toValue`,
+            `Tier "${currentTier.name}": Chỉ tier cuối cùng mới có thể có toValue là null`,
             HttpStatus.BAD_REQUEST,
           );
         }
@@ -296,7 +296,7 @@ export class FeesService {
         // Next tier's fromValue should equal current tier's toValue
         if (Number(nextTier.fromValue) !== Number(currentTier.toValue)) {
           throw new HttpException(
-            `Gap or overlap detected between tier "${currentTier.name}" and "${nextTier.name}"`,
+            `Phát hiện khoảng trống hoặc chồng chéo giữa tier "${currentTier.name}" và "${nextTier.name}"`,
             HttpStatus.BAD_REQUEST,
           );
         }
@@ -306,7 +306,7 @@ export class FeesService {
     // First tier should start from 0
     if (sortedTiers.length > 0 && Number(sortedTiers[0].fromValue) !== 0) {
       throw new HttpException(
-        'First tier must start from 0',
+        'Tier đầu tiên phải bắt đầu từ 0',
         HttpStatus.BAD_REQUEST,
       );
     }

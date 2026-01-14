@@ -52,7 +52,7 @@ export class ResidentsService {
     });
 
     if (existingEmail) {
-      throw new HttpException('Email already exists', HttpStatus.CONFLICT);
+      throw new HttpException('Email đã tồn tại', HttpStatus.CONFLICT);
     }
 
     // Generate password from CCCD
@@ -67,7 +67,10 @@ export class ResidentsService {
           imageUrl = uploadResult.secure_url;
         }
       } catch (error) {
-        throw new BadRequestException('Failed to upload image');
+        throw new HttpException(
+          'Upload ảnh không thành công',
+          HttpStatus.BAD_REQUEST,
+        );
       }
     }
 

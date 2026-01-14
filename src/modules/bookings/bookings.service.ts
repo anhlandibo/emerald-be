@@ -83,7 +83,7 @@ export class BookingsService {
 
     if (!booking) {
       throw new HttpException(
-        `Booking with ID ${id} not found`,
+        `Booking với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -101,13 +101,16 @@ export class BookingsService {
 
     if (!booking) {
       throw new HttpException(
-        `Booking with ID ${id} not found`,
+        `Booking với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
 
     if (booking.status !== BookingStatus.PENDING) {
-      throw new BadRequestException('Can only pay for pending bookings');
+      throw new HttpException(
+        'Chỉ có thể thanh toán cho booking đang chờ xử lý',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     if (booking.expiresAt && new Date() > booking.expiresAt) {
@@ -116,7 +119,7 @@ export class BookingsService {
 
       await this.releaseSlot(booking);
 
-      throw new BadRequestException('Booking has expired');
+      throw new HttpException('Booking đã hết hạn', HttpStatus.BAD_REQUEST);
     }
 
     const payment = this.paymentRepository.create({

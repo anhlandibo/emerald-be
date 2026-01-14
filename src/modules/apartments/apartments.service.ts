@@ -31,7 +31,7 @@ export class ApartmentsService {
     });
 
     if (!block) {
-      throw new HttpException('Block not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('Block không tồn tại', HttpStatus.NOT_FOUND);
     }
 
     // Check if apartment name already exists in this block
@@ -45,7 +45,7 @@ export class ApartmentsService {
 
     if (existingApartment) {
       throw new HttpException(
-        'Apartment name already exists in this block',
+        'Tên căn hộ đã tồn tại trong block này',
         HttpStatus.CONFLICT,
       );
     }
@@ -56,7 +56,7 @@ export class ApartmentsService {
     });
 
     if (!owner) {
-      throw new HttpException('Owner resident not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('Chủ sở hữu không tồn tại', HttpStatus.NOT_FOUND);
     }
 
     // Verify all residents exist
@@ -70,7 +70,7 @@ export class ApartmentsService {
         });
         if (!resident) {
           throw new HttpException(
-            `Resident with ID ${residentDto.id} not found`,
+            `Cư dân với ID ${residentDto.id} không tồn tại`,
             HttpStatus.NOT_FOUND,
           );
         }
@@ -170,7 +170,7 @@ export class ApartmentsService {
     });
 
     if (!apartment) {
-      throw new HttpException('Apartment not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('Căn hộ không tồn tại', HttpStatus.NOT_FOUND);
     }
 
     // Find owner
@@ -215,7 +215,7 @@ export class ApartmentsService {
     });
 
     if (!apartment) {
-      throw new HttpException('Apartment not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('Căn hộ không tồn tại', HttpStatus.NOT_FOUND);
     }
 
     // If block is being changed, verify the new block exists
@@ -225,7 +225,7 @@ export class ApartmentsService {
       });
 
       if (!block) {
-        throw new HttpException('Block not found', HttpStatus.NOT_FOUND);
+        throw new HttpException('Block không tồn tại', HttpStatus.NOT_FOUND);
       }
 
       apartment.blockId = updateApartmentDto.blockId;
@@ -246,7 +246,7 @@ export class ApartmentsService {
 
       if (existingApartment && existingApartment.id !== id) {
         throw new HttpException(
-          'Apartment name already exists in this block',
+          'Tên căn hộ đã tồn tại trong block này',
           HttpStatus.CONFLICT,
         );
       }
@@ -280,7 +280,7 @@ export class ApartmentsService {
 
         if (!owner) {
           throw new HttpException(
-            'Owner resident not found',
+            'Chủ sở hữu không tồn tại',
             HttpStatus.NOT_FOUND,
           );
         }
@@ -329,13 +329,13 @@ export class ApartmentsService {
     });
 
     if (!apartment) {
-      throw new HttpException('Apartment not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('Căn hộ không tồn tại', HttpStatus.NOT_FOUND);
     }
 
     apartment.isActive = false;
     await this.apartmentRepository.save(apartment);
 
-    return { message: 'Apartment deleted successfully' };
+    return { message: 'Xóa căn hộ thành công' };
   }
 
   async removeMany(ids: number[]) {
@@ -345,7 +345,7 @@ export class ApartmentsService {
 
     if (apartments.length === 0) {
       throw new HttpException(
-        'No apartments found with provided IDs',
+        'Không tìm thấy căn hộ nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -354,7 +354,7 @@ export class ApartmentsService {
     await this.apartmentRepository.update({ id: In(ids) }, { isActive: false });
 
     return {
-      message: `Successfully deleted ${apartments.length} apartment(s)`,
+      message: `Đã xóa thành công ${apartments.length} căn hộ`,
       deletedCount: apartments.length,
     };
   }

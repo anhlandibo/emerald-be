@@ -45,7 +45,7 @@ export class ServicesService {
 
     if (!service) {
       throw new HttpException(
-        `Service with ID ${id} not found`,
+        `Service với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -123,7 +123,7 @@ export class ServicesService {
 
     if (!resident) {
       throw new HttpException(
-        'Resident profile not found',
+        'Hồ sơ cư dân không tồn tại',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -133,11 +133,17 @@ export class ServicesService {
     });
 
     if (!service) {
-      throw new HttpException('Service not found', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        `Service với ID ${serviceId} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     if (reserveSlotDto.slots.length === 0) {
-      throw new BadRequestException('No slots provided');
+      throw new HttpException(
+        'Không có slot nào được cung cấp',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const seen = new Set<string>();
@@ -165,8 +171,9 @@ export class ServicesService {
           endParts[0] > closeH ||
           (endParts[0] === closeH && endParts[1] > closeM)
         ) {
-          throw new BadRequestException(
-            `Slot ${slotItem.startTime}-${slotItem.endTime} is outside service hours ${service.openHour}-${service.closeHour}`,
+          throw new HttpException(
+            `Slot ${slotItem.startTime}-${slotItem.endTime} không nằm trong giờ dịch vụ ${service.openHour}-${service.closeHour}`,
+            HttpStatus.BAD_REQUEST,
           );
         }
 
@@ -190,8 +197,9 @@ export class ServicesService {
           });
         } else {
           if (slot.remainingSlot <= 0) {
-            throw new BadRequestException(
-              `No available slots for ${slotItem.startTime}-${slotItem.endTime}`,
+            throw new HttpException(
+              `Không còn slot nào khả dụng cho ${slotItem.startTime}-${slotItem.endTime}`,
+              HttpStatus.BAD_REQUEST,
             );
           }
           slot.remainingSlot -= 1;
@@ -290,15 +298,17 @@ export class ServicesService {
       const endMinutes = endParts[0] * 60 + endParts[1];
 
       if (endMinutes <= startMinutes) {
-        throw new BadRequestException(
-          'End time must be after start time for slot',
+        throw new HttpException(
+          'Thời gian kết thúc phải sau thời gian bắt đầu cho mỗi slot',
+          HttpStatus.BAD_REQUEST,
         );
       }
 
       const durationMinutes = endMinutes - startMinutes;
       if (durationMinutes % service.unitTimeBlock !== 0) {
-        throw new BadRequestException(
-          `Duration must be a multiple of ${service.unitTimeBlock} minutes for each slot`,
+        throw new HttpException(
+          `Thời lượng phải là bội số của ${service.unitTimeBlock} phút cho mỗi slot`,
+          HttpStatus.BAD_REQUEST,
         );
       }
 

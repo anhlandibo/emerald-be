@@ -35,7 +35,7 @@ export class IssuesService {
 
     if (!resident) {
       throw new HttpException(
-        'Resident profile not found for this account',
+        'Resident profile không tìm thấy hoặc không hoạt động',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -109,7 +109,7 @@ export class IssuesService {
 
     if (!issue) {
       throw new HttpException(
-        `Issue with ID ${id} not found`,
+        `Issue với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -134,7 +134,7 @@ export class IssuesService {
 
     if (!resident) {
       throw new HttpException(
-        'Resident profile not found',
+        'Resident profile không tìm thấy hoặc không hoạt động',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -152,7 +152,7 @@ export class IssuesService {
 
     if (!issue) {
       throw new HttpException(
-        `Issue with ID ${id} not found`,
+        `Issue với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -178,19 +178,23 @@ export class IssuesService {
 
     if (!issue) {
       throw new HttpException(
-        `Issue with ID ${id} not found`,
+        `Issue với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
 
     if (issue.status !== IssueStatus.RESOLVED) {
-      throw new BadRequestException(
-        'Can only rate issues that have been resolved',
+      throw new HttpException(
+        'Chỉ có thể đánh giá các vấn đề đã được giải quyết',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
     if (issue.rating) {
-      throw new BadRequestException('Issue has already been rated');
+      throw new HttpException(
+        'Vấn đề đã được đánh giá',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     issue.rating = rateIssueDto.rating;
@@ -208,14 +212,15 @@ export class IssuesService {
 
     if (!issue) {
       throw new HttpException(
-        `Issue with ID ${id} not found`,
+        `Issue với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
 
     if (issue.status !== IssueStatus.PENDING) {
-      throw new BadRequestException(
-        'Can only delete issues that are still pending',
+      throw new HttpException(
+        'Chỉ có thể xóa các vấn đề vẫn đang chờ xử lý',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -239,8 +244,9 @@ export class IssuesService {
     const allowedStatuses = validTransitions[currentStatus];
 
     if (!allowedStatuses.includes(newStatus)) {
-      throw new BadRequestException(
-        `Cannot transition from ${currentStatus} to ${newStatus}`,
+      throw new HttpException(
+        `Không thể chuyển trạng thái từ ${currentStatus} sang ${newStatus}`,
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
