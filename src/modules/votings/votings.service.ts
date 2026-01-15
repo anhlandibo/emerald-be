@@ -66,6 +66,55 @@ export class VotingsService {
     }
   }
 
+  /**
+   * Parse targetFloorNumbers safely
+   * Handles different formats: array, JSON string, or comma-separated string
+   */
+  private parseFloorNumbers(targetFloorNumbers: unknown): number[] | undefined {
+    if (!targetFloorNumbers) return undefined;
+
+    // Already an array
+    if (Array.isArray(targetFloorNumbers)) {
+      return targetFloorNumbers.map((f) => {
+        const parsed = typeof f === 'string' ? parseInt(f, 10) : f;
+        return isNaN(parsed) ? 0 : parsed;
+      });
+    }
+
+    // String format - try to parse
+    if (typeof targetFloorNumbers === 'string') {
+      // Try JSON format first (e.g., "[1,2,3]")
+      if (targetFloorNumbers.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(targetFloorNumbers);
+          if (Array.isArray(parsed)) {
+            return parsed.map((f) => {
+              const num = typeof f === 'string' ? parseInt(f, 10) : f;
+              return isNaN(num) ? 0 : num;
+            });
+          }
+        } catch {
+          // Fall through to comma-separated parsing
+        }
+      }
+
+      // Try comma-separated format (e.g., "1,2,3")
+      if (targetFloorNumbers.includes(',')) {
+        return targetFloorNumbers.split(',').map((f) => {
+          const trimmed = f.trim();
+          const parsed = parseInt(trimmed, 10);
+          return isNaN(parsed) ? 0 : parsed;
+        });
+      }
+
+      // Single number as string
+      const parsed = parseInt(targetFloorNumbers, 10);
+      return isNaN(parsed) ? undefined : [parsed];
+    }
+
+    return undefined;
+  }
+
   async create(createDto: CreateVotingDto, files?: Express.Multer.File[]) {
     // Validate dates
     const startTime = new Date(createDto.startTime);
@@ -488,13 +537,29 @@ export class VotingsService {
     });
     if (!account)
       throw new HttpException('Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+
     // Validate resident exists
     const resident = await this.residentRepository.findOne({
       where: { accountId: account.id, isActive: true },
     });
-    console.log(accountId, resident);
     if (!resident)
       throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
+
+    // CHECK: Resident must be OWNER to vote
+    const isOwner = await this.apartmentResidentRepository.findOne({
+      where: {
+        residentId: resident.id,
+        relationship: RelationshipType.OWNER,
+      },
+    });
+
+    if (!isOwner) {
+      throw new HttpException(
+        'Chỉ chủ hộ mới có quyền bỏ phiếu',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // Validate voting exists
     const voting = await this.votingRepository.findOne({
       where: { id: votingId, isActive: true },
@@ -528,29 +593,29 @@ export class VotingsService {
       );
     }
 
-    // Check if resident already voted
+    // Check if resident already voted for this voting
     const existingVote = await this.residentOptionRepository.findOne({
       where: {
         residentId: resident.id,
-        option: { votingId },
+        votingId,
       },
-      relations: ['option'],
     });
 
     if (existingVote) {
-      // Update existing vote
+      // Update existing vote to new option
       existingVote.optionId = voteDto.optionId;
       await this.residentOptionRepository.save(existingVote);
+      return { message: 'Vote updated successfully' };
     } else {
       // Create new vote
       const residentOption = this.residentOptionRepository.create({
         residentId: resident.id,
         optionId: voteDto.optionId,
+        votingId,
       });
       await this.residentOptionRepository.save(residentOption);
+      return { message: 'Vote recorded successfully' };
     }
-
-    return { message: 'Vote recorded successfully' };
   }
 
   async findMyVotings(accountId: number, queryDto: QueryVotingDto) {
@@ -567,9 +632,28 @@ export class VotingsService {
     if (!resident)
       throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
 
+    // CHECK: Only OWNER residents can see votings
+    const isOwner = await this.apartmentResidentRepository.findOne({
+      where: {
+        residentId: resident.id,
+        relationship: RelationshipType.OWNER,
+      },
+    });
+
+    if (!isOwner) {
+      throw new HttpException(
+        'Chỉ chủ hộ mới có quyền xem cuộc bỏ phiếu',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // Get resident's apartment information to determine voting eligibility
+    // Only get OWNER apartments
     const apartmentResidents = await this.apartmentResidentRepository.find({
-      where: { residentId: resident.id },
+      where: {
+        residentId: resident.id,
+        relationship: RelationshipType.OWNER,
+      },
       relations: ['apartment', 'apartment.block'],
     });
 
@@ -637,11 +721,20 @@ export class VotingsService {
     // Format response with voting area and voted option
     const result = await Promise.all(
       filteredVotings.map(async (voting) => {
-        const votingArea = await this.getResidentVotingArea(resident.id);
+        const votingArea = await this.getResidentVotingArea(
+          resident.id,
+          voting.id,
+        );
         const votedOption = await this.getResidentVotedOption(
           resident.id,
           voting.id,
         );
+
+        // Get target blocks for detail
+        const targetBlocks = await this.targetBlockRepository.find({
+          where: { votingId: voting.id },
+          relations: ['block'],
+        });
 
         return {
           id: voting.id,
@@ -651,6 +744,13 @@ export class VotingsService {
           endTime: voting.endTime,
           isRequired: voting.isRequired,
           status: this.getVotingStatus(voting),
+          targetScope: voting.targetScope,
+          targetBlocks: targetBlocks.map((tb) => ({
+            blockId: tb.blockId,
+            blockName: tb.block?.name,
+            targetFloorNumbers: tb.targetFloorNumbers,
+          })),
+          fileUrls: voting.fileUrls || [],
           votingArea,
           votedOption: votedOption || null,
           options: voting.options.map((opt) => ({
@@ -742,7 +842,11 @@ export class VotingsService {
 
     if (!voting) return false;
 
-    // If scope is ALL, everyone is eligible
+    // IMPORTANT: Only OWNER residents are eligible
+    // apartmentResidents passed in are already filtered by OWNER relationship
+    if (apartmentResidents.length === 0) return false;
+
+    // If scope is ALL, every OWNER is eligible
     if (voting.targetScope === ScopeType.ALL) return true;
 
     // Get target blocks for this voting
@@ -750,32 +854,85 @@ export class VotingsService {
       where: { votingId },
     });
 
+    console.log(`\n=== VOTING ELIGIBILITY CHECK ===`);
+    console.log(`Voting ID: ${votingId}, Scope: ${voting.targetScope}`);
+    console.log(
+      `Resident Apartments: ${apartmentResidents.map((ar) => `Block ${ar.apartment?.blockId} Floor ${ar.apartment?.floor}`).join(', ')}`,
+    );
+
     if (targetBlocks.length === 0) return false;
 
-    // Check if resident's apartments match target blocks
+    console.log(
+      `Target Blocks: ${JSON.stringify(targetBlocks.map((tb) => ({ blockId: tb.blockId, floors: tb.targetFloorNumbers })))}`,
+    );
+
+    // Check if resident's OWNER apartments match target blocks
     for (const ar of apartmentResidents) {
       const apartment = ar.apartment;
       if (!apartment) continue;
 
       for (const tb of targetBlocks) {
         if (voting.targetScope === ScopeType.BLOCK) {
-          if (apartment.blockId === tb.blockId) return true;
+          // Check block match
+          if (apartment.blockId !== tb.blockId) continue;
+
+          // If target block has floor restrictions, check those too
+          const floorNumbers = this.parseFloorNumbers(tb.targetFloorNumbers);
+          if (floorNumbers && floorNumbers.length > 0) {
+            // BLOCK scope + floor numbers = check floor too
+            if (floorNumbers.includes(apartment.floor)) {
+              console.log(
+                `✅ ELIGIBLE (BLOCK with floor restriction): Apartment at Block ${apartment.blockId} Floor ${apartment.floor}`,
+              );
+              return true;
+            }
+          } else {
+            // BLOCK scope without floor restriction = all floors eligible
+            console.log(
+              `✅ ELIGIBLE (BLOCK scope): Apartment at Block ${apartment.blockId} matches target Block ${tb.blockId}`,
+            );
+            return true;
+          }
         } else if (voting.targetScope === ScopeType.FLOOR) {
-          if (
-            apartment.blockId === tb.blockId &&
-            tb.targetFloorNumbers &&
-            tb.targetFloorNumbers.includes(apartment.floor)
-          ) {
+          const floorNumbers = this.parseFloorNumbers(tb.targetFloorNumbers);
+          const isBlockMatch = apartment.blockId === tb.blockId;
+          const isFloorMatch =
+            floorNumbers && floorNumbers.includes(apartment.floor);
+
+          console.log(
+            `FLOOR check: Apartment Block ${apartment.blockId} Floor ${apartment.floor} vs Target Block ${tb.blockId} Floors [${JSON.stringify(floorNumbers)}]`,
+          );
+          console.log(
+            `  - Block match: ${isBlockMatch}, Floor match: ${isFloorMatch}`,
+          );
+
+          if (isBlockMatch && isFloorMatch) {
+            console.log(
+              `✅ ELIGIBLE (FLOOR scope): Apartment at Block ${apartment.blockId} Floor ${apartment.floor}`,
+            );
             return true;
           }
         }
       }
     }
 
+    console.log(`❌ NOT ELIGIBLE: No matching apartments found`);
+    console.log(`=== END CHECK ===\n`);
     return false;
   }
 
-  private async getResidentVotingArea(residentId: number): Promise<number> {
+  private async getResidentVotingArea(
+    residentId: number,
+    votingId: number,
+  ): Promise<number> {
+    // Get voting and target blocks
+    const voting = await this.votingRepository.findOne({
+      where: { id: votingId },
+    });
+
+    if (!voting) return 0;
+
+    // Get all OWNER apartments of this resident
     const apartmentResidents = await this.apartmentResidentRepository.find({
       where: {
         residentId,
@@ -784,8 +941,62 @@ export class VotingsService {
       relations: ['apartment'],
     });
 
-    const totalArea = apartmentResidents.reduce((sum, ar) => {
-      return sum + (Number(ar.apartment?.area) || 0);
+    if (apartmentResidents.length === 0) return 0;
+
+    // Filter apartments based on voting scope
+    let eligibleApartments = apartmentResidents;
+
+    if (voting.targetScope !== ScopeType.ALL) {
+      // Get target blocks for this voting
+      const targetBlocks = await this.targetBlockRepository.find({
+        where: { votingId },
+      });
+
+      if (targetBlocks.length === 0) return 0;
+
+      // Filter resident's apartments against target blocks
+      eligibleApartments = apartmentResidents.filter((ar) => {
+        const apartment = ar.apartment;
+        if (!apartment) return false;
+
+        // Check if apartment matches any target block
+        for (const tb of targetBlocks) {
+          if (apartment.blockId !== tb.blockId) continue;
+
+          if (voting.targetScope === ScopeType.BLOCK) {
+            return true;
+          } else if (voting.targetScope === ScopeType.FLOOR) {
+            // Parse floor numbers and check if apartment is on target floor
+            const floorNumbers = this.parseFloorNumbers(tb.targetFloorNumbers);
+            if (floorNumbers && floorNumbers.includes(apartment.floor)) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      });
+    }
+
+    if (eligibleApartments.length === 0) return 0;
+
+    // Get unique apartments and sum their area
+    const apartmentIds = new Set(
+      eligibleApartments
+        .map((ar) => ar.apartment?.id)
+        .filter((id): id is number => id !== undefined),
+    );
+
+    if (apartmentIds.size === 0) return 0;
+
+    const apartments = await this.apartmentRepository.find({
+      where: {
+        id: In(Array.from(apartmentIds)),
+      },
+    });
+
+    const totalArea = apartments.reduce((sum, apt) => {
+      return sum + (Number(apt.area) || 0);
     }, 0);
 
     return Number(totalArea.toFixed(2));
@@ -798,7 +1009,7 @@ export class VotingsService {
     const residentOption = await this.residentOptionRepository.findOne({
       where: {
         residentId,
-        option: { votingId },
+        votingId,
       },
       relations: ['option'],
     });
@@ -851,13 +1062,14 @@ export class VotingsService {
         totalArea += Number(result?.totalArea || 0);
       } else if (voting.targetScope === ScopeType.FLOOR) {
         // Sum apartments on specific floors
-        if (tb.targetFloorNumbers && tb.targetFloorNumbers.length > 0) {
+        const floorNumbers = this.parseFloorNumbers(tb.targetFloorNumbers);
+        if (floorNumbers && floorNumbers.length > 0) {
           const result = await this.apartmentRepository
             .createQueryBuilder('apartment')
             .select('SUM(apartment.area)', 'totalArea')
             .where('apartment.blockId = :blockId', { blockId: tb.blockId })
             .andWhere('apartment.floorNumber IN (:...floors)', {
-              floors: tb.targetFloorNumbers,
+              floors: floorNumbers,
             })
             .andWhere('apartment.isActive = :isActive', { isActive: true })
             .getRawOne();
@@ -875,6 +1087,7 @@ export class VotingsService {
   ): Promise<number> {
     if (residentIds.length === 0) return 0;
 
+    // Get OWNER apartments where these residents exist
     const apartmentResidents = await this.apartmentResidentRepository.find({
       where: {
         residentId: In(residentIds),
@@ -883,8 +1096,22 @@ export class VotingsService {
       relations: ['apartment'],
     });
 
-    const totalArea = apartmentResidents.reduce((sum, ar) => {
-      return sum + (Number(ar.apartment?.area) || 0);
+    // Get unique apartments and sum their area
+    const apartmentIds = new Set(
+      apartmentResidents.map((ar) => ar.apartment?.id).filter((id) => id),
+    );
+
+    if (apartmentIds.size === 0) return 0;
+
+    const apartments = await this.apartmentRepository.find({
+      where: {
+        id: In(Array.from(apartmentIds)),
+      },
+    });
+
+    // Sum area of unique apartments
+    const totalArea = apartments.reduce((sum, apt) => {
+      return sum + (Number(apt.area) || 0);
     }, 0);
 
     return Number(totalArea.toFixed(2));
@@ -903,12 +1130,15 @@ export class VotingsService {
       }),
     );
 
-    // Find option with highest area
-    const leading = results.reduce((max, current) =>
-      current.area > max.area ? current : max,
-    );
+    // Find option with highest area, only return if area > 0
+    let leading = results[0];
+    for (const current of results) {
+      if (current.area > leading.area) {
+        leading = current;
+      }
+    }
 
-    return leading.area > 0 ? leading.name : null;
+    return leading && leading.area > 0 ? leading.name : null;
   }
 
   private async calculateOptionArea(optionId: number): Promise<number> {
@@ -920,7 +1150,7 @@ export class VotingsService {
 
     const residentIds = residentOptions.map((ro) => ro.residentId);
 
-    // Get apartments where these residents are OWNERS
+    // Get OWNER apartments where these residents exist
     const apartmentResidents = await this.apartmentResidentRepository.find({
       where: {
         residentId: In(residentIds),
@@ -929,8 +1159,22 @@ export class VotingsService {
       relations: ['apartment'],
     });
 
-    const totalArea = apartmentResidents.reduce((sum, ar) => {
-      return sum + (Number(ar.apartment?.area) || 0);
+    // Get unique apartments and sum their area
+    const apartmentIds = new Set(
+      apartmentResidents.map((ar) => ar.apartment?.id).filter((id) => id),
+    );
+
+    if (apartmentIds.size === 0) return 0;
+
+    const apartments = await this.apartmentRepository.find({
+      where: {
+        id: In(Array.from(apartmentIds)),
+      },
+    });
+
+    // Sum area of unique apartments
+    const totalArea = apartments.reduce((sum, apt) => {
+      return sum + (Number(apt.area) || 0);
     }, 0);
 
     return totalArea;
@@ -944,27 +1188,13 @@ export class VotingsService {
     if (!voting) return '';
 
     if (voting.targetScope === ScopeType.ALL) {
-      return 'Toàn bộ chung cư';
+      return 'Toàn chung cư';
+    } else if (voting.targetScope === ScopeType.BLOCK) {
+      return 'Theo tòa';
+    } else if (voting.targetScope === ScopeType.FLOOR) {
+      return 'Theo tầng';
     }
 
-    const targetBlocks = await this.targetBlockRepository.find({
-      where: { votingId },
-      relations: ['block'],
-    });
-
-    if (targetBlocks.length === 0) return '';
-
-    const displays = targetBlocks.map((tb) => {
-      if (
-        voting.targetScope === ScopeType.FLOOR &&
-        tb.targetFloorNumbers &&
-        tb.targetFloorNumbers.length > 0
-      ) {
-        return `${tb.block?.name} - Tầng ${tb.targetFloorNumbers.join(', ')}`;
-      }
-      return tb.block?.name || '';
-    });
-
-    return displays.join(', ');
+    return '';
   }
 }

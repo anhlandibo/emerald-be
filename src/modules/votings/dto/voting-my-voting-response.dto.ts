@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
+import { ScopeType } from '../../notifications/enums/scope-type.enum';
 import { VotingStatus } from '../enums/voting-status.enum';
 
 class OptionResponseDto {
@@ -24,6 +25,20 @@ class VotedOptionDto {
   @ApiProperty()
   @Expose()
   name: string;
+}
+
+class TargetBlockDetailDto {
+  @ApiProperty()
+  @Expose()
+  blockId: number;
+
+  @ApiPropertyOptional()
+  @Expose()
+  blockName?: string;
+
+  @ApiPropertyOptional()
+  @Expose()
+  targetFloorNumbers?: number[];
 }
 
 export class VotingMyVotingResponseDto {
@@ -54,6 +69,19 @@ export class VotingMyVotingResponseDto {
   @ApiProperty({ enum: VotingStatus })
   @Expose()
   status: VotingStatus;
+
+  @ApiProperty({ enum: ScopeType })
+  @Expose()
+  targetScope: ScopeType;
+
+  @ApiPropertyOptional({ type: [TargetBlockDetailDto] })
+  @Expose()
+  @Type(() => TargetBlockDetailDto)
+  targetBlocks?: TargetBlockDetailDto[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @Expose()
+  fileUrls?: string[];
 
   @ApiProperty()
   @Expose()
