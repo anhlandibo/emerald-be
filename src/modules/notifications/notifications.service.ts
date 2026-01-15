@@ -440,7 +440,7 @@ export class NotificationsService {
       relations: ['apartment'],
     });
 
-    const myBlocks = [
+    const myBlockIds = [
       ...new Set(myApartments.map((ap) => ap.apartment.blockId)),
     ];
     const myAptsInfo = myApartments.map((ap) => ({
@@ -461,38 +461,40 @@ export class NotificationsService {
       )
       .where('notification.isActive = :isActive', { isActive: true });
 
+    queryBuilder.andWhere('notification.channels LIKE :appChannel', {
+      appChannel: '%APP%',
+    });
+
     queryBuilder.andWhere(
       new Brackets((qb) => {
         qb.where('notification.targetScope = :all', { all: ScopeType.ALL });
 
-        if (myBlocks.length > 0) {
+        if (myBlockIds.length > 0) {
           qb.orWhere(
-            '(notification.targetScope = :blockScope AND targetBlocks.blockId IN (:...myBlocks))',
-            { blockScope: ScopeType.BLOCK, myBlocks },
+            '(notification.targetScope = :blockScope AND targetBlocks.blockId IN (:...myBlockIds))',
+            { blockScope: ScopeType.BLOCK, myBlockIds },
           );
         }
 
         if (myAptsInfo.length > 0) {
           qb.orWhere(
-            new Brackets((floorQb) => {
-              floorQb.where('notification.targetScope = :floorScope', {
+            new Brackets((floorScopeQb) => {
+              floorScopeQb.where('notification.targetScope = :floorScope', {
                 floorScope: ScopeType.FLOOR,
               });
 
-              myAptsInfo.forEach((info, index) => {
-                const bKey = `bId${index}`;
-                const fKey = `fNum${index}`;
-
-                // Trick SQL: Dùng dấu phẩy bao quanh để khớp chính xác số tầng trong simple-array (string)
-                // Ví dụ: ',1,2,5,' LIKE '%,5,%' sẽ đúng, còn '%,15,%' sẽ sai
-                floorQb.orWhere(
-                  `(targetBlocks.blockId = :${bKey} AND ',' || targetBlocks.targetFloorNumbers || ',' LIKE :${fKey})`,
-                  {
-                    [bKey]: info.blockId,
-                    [fKey]: `%,${info.floor},%`,
-                  },
-                );
-              });
+              floorScopeQb.andWhere(
+                new Brackets((aptMatchQb) => {
+                  myAptsInfo.forEach((apt, i) => {
+                    const bKey = `bId${i}`;
+                    const fKey = `fNum${i}`;
+                    aptMatchQb.orWhere(
+                      `(targetBlocks.blockId = :${bKey} AND ',' || targetBlocks.targetFloorNumbers || ',' LIKE :${fKey})`,
+                      { [bKey]: apt.blockId, [fKey]: `%,${apt.floor},%` },
+                    );
+                  });
+                }),
+              );
             }),
           );
         }
