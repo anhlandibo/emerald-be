@@ -581,6 +581,28 @@ export class VotingsService {
       );
     }
 
+    // CHECK: Resident is eligible for this voting based on block/floor scope
+    const apartmentResidents = await this.apartmentResidentRepository.find({
+      where: {
+        residentId: resident.id,
+        relationship: RelationshipType.OWNER,
+      },
+      relations: ['apartment', 'apartment.block'],
+    });
+
+    const isEligible = await this.isResidentEligibleForVoting(
+      resident.id,
+      votingId,
+      apartmentResidents,
+    );
+
+    if (!isEligible) {
+      throw new HttpException(
+        'Bạn không đủ điều kiện để bỏ phiếu cho cuộc bỏ phiếu này',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // Validate option exists
     const option = await this.optionRepository.findOne({
       where: { id: voteDto.optionId, votingId },
