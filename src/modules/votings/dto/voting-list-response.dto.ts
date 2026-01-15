@@ -12,7 +12,11 @@ export class VotingListResponseDto {
   @Expose()
   title: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    enum: ['Toàn chung cư', 'Theo tòa', 'Theo tầng'],
+    example: 'Toàn chung cư',
+    description: 'Phạm vi áp dụng của cuộc bỏ phiếu',
+  })
   @Expose()
   scopeDisplay: string;
 
