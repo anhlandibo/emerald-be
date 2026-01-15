@@ -9,14 +9,20 @@ import { Repository, Between } from 'typeorm';
 import { Service } from './entities/service.entity';
 import { SlotAvailability } from './entities/slot-availability.entity';
 import { Resident } from '../residents/entities/resident.entity';
+import { Booking } from '../bookings/entities/booking.entity';
 import { CheckSlotAvailabilityDto } from './dtos/check-slot-availability.dto';
 import { ReserveSlotDto } from './dtos/reserve-slot.dto';
+import { CreateServiceDto } from './dtos/create-service.dto';
+import { UpdateServiceDto } from './dtos/update-service.dto';
 import {
   ServiceResponseDto,
   SlotAvailabilityResponseDto,
 } from './dtos/service-response.dto';
-import { ServiceTypeLabels } from './enums/service-type.enum';
+import { ServiceDetailResponseDto } from './dtos/service-detail-response.dto';
+import { ServiceTypeLabels, ServiceType } from './enums/service-type.enum';
 import { BookingsService } from '../bookings/bookings.service';
+import { BookingStatusLabels } from '../bookings/enums/booking-status.enum';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ServicesService {
@@ -27,7 +33,10 @@ export class ServicesService {
     private readonly slotRepository: Repository<SlotAvailability>,
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
+    @InjectRepository(Booking)
+    private readonly bookingRepository: Repository<Booking>,
     private readonly bookingsService: BookingsService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async findAll(): Promise<ServiceResponseDto[]> {
@@ -51,6 +60,57 @@ export class ServicesService {
     }
 
     return this.transformToResponse(service);
+  }
+
+  async findOneWithBookingHistory(
+    id: number,
+  ): Promise<ServiceDetailResponseDto> {
+    const service = await this.serviceRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!service) {
+      throw new HttpException(
+        `Service với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const bookings = await this.bookingRepository.find({
+      where: { serviceId: id },
+      relations: ['resident'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const bookingHistory = bookings.map((booking) => ({
+      id: booking.id,
+      code: booking.code,
+      residentName: booking.resident?.fullName || '',
+      phoneNumber: booking.resident?.phoneNumber || '',
+      bookingDate: booking.bookingDate,
+      unitPrice: booking.unitPrice,
+      timestamps: booking.timestamps,
+      totalPrice: booking.totalPrice,
+      status: booking.status,
+      statusLabel: BookingStatusLabels[booking.status],
+      createdAt: booking.createdAt,
+    }));
+
+    return {
+      id: service.id,
+      name: service.name,
+      description: service.description,
+      openHour: service.openHour,
+      closeHour: service.closeHour,
+      imageUrl: service.imageUrl,
+      unitPrice: service.unitPrice,
+      unitTimeBlock: service.unitTimeBlock,
+      totalSlot: service.totalSlot,
+      type: service.type,
+      typeLabel: ServiceTypeLabels[service.type],
+      createdAt: service.createdAt,
+      bookingHistory,
+    };
   }
 
   async checkSlotAvailability(
@@ -213,6 +273,171 @@ export class ServicesService {
 
       return booking;
     });
+  }
+
+  async create(
+    createServiceDto: CreateServiceDto,
+    imageFile?: Express.Multer.File,
+  ): Promise<ServiceResponseDto> {
+    // Upload image if provided
+    let imageUrl: string | undefined = undefined;
+    if (imageFile) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadFile(imageFile);
+        if (uploadResult) {
+          imageUrl = uploadResult.secure_url;
+        }
+      } catch (error) {
+        throw new HttpException(
+          'Upload ảnh không thành công',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    const service = this.serviceRepository.create({
+      name: createServiceDto.name,
+      description: createServiceDto.description,
+      openHour: createServiceDto.openHour,
+      closeHour: createServiceDto.closeHour,
+      imageUrl,
+      unitPrice: createServiceDto.unitPrice,
+      unitTimeBlock: createServiceDto.unitTimeBlock,
+      totalSlot: createServiceDto.totalSlot,
+      type: createServiceDto.type || ServiceType.NORMAL,
+      isActive: true,
+    });
+
+    const savedService = await this.serviceRepository.save(service);
+    return this.transformToResponse(savedService);
+  }
+
+  async update(
+    id: number,
+    updateServiceDto: UpdateServiceDto,
+    imageFile?: Express.Multer.File,
+  ): Promise<ServiceResponseDto> {
+    const service = await this.serviceRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!service) {
+      throw new HttpException(
+        `Service với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const updateData: Partial<Service> = {};
+
+    if (updateServiceDto.name !== undefined) {
+      updateData.name = updateServiceDto.name;
+    }
+    if (updateServiceDto.description !== undefined) {
+      updateData.description = updateServiceDto.description;
+    }
+    if (updateServiceDto.openHour !== undefined) {
+      updateData.openHour = updateServiceDto.openHour;
+    }
+    if (updateServiceDto.closeHour !== undefined) {
+      updateData.closeHour = updateServiceDto.closeHour;
+    }
+
+    // Handle image upload
+    if (imageFile) {
+      try {
+        // Delete old image if it exists
+        if (service.imageUrl) {
+          // Extract public ID from Cloudinary URL if needed
+          // For now, we'll just upload the new one
+        }
+        const uploadResult = await this.cloudinaryService.uploadFile(imageFile);
+        if (uploadResult) {
+          updateData.imageUrl = uploadResult.secure_url;
+        }
+      } catch (error) {
+        throw new HttpException(
+          'Upload ảnh không thành công',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    if (updateServiceDto.unitPrice !== undefined) {
+      updateData.unitPrice = updateServiceDto.unitPrice;
+    }
+    if (updateServiceDto.unitTimeBlock !== undefined) {
+      updateData.unitTimeBlock = updateServiceDto.unitTimeBlock;
+    }
+    if (updateServiceDto.totalSlot !== undefined) {
+      updateData.totalSlot = updateServiceDto.totalSlot;
+    }
+    if (updateServiceDto.type !== undefined) {
+      updateData.type = updateServiceDto.type;
+    }
+
+    await this.serviceRepository.update(id, updateData);
+    const updatedService = await this.serviceRepository.findOne({
+      where: { id },
+    });
+
+    if (!updatedService) {
+      throw new HttpException(
+        `Service với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return this.transformToResponse(updatedService);
+  }
+
+  async softDelete(id: number): Promise<{ message: string }> {
+    const service = await this.serviceRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!service) {
+      throw new HttpException(
+        `Service với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.serviceRepository.update(id, { isActive: false });
+    return { message: `Xóa dịch vụ ID ${id} thành công` };
+  }
+
+  async softDeleteMultiple(
+    ids: number[],
+  ): Promise<{ message: string; count: number }> {
+    if (!ids || ids.length === 0) {
+      throw new HttpException(
+        'Danh sách ID không được để trống',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const services = await this.serviceRepository.find({
+      where: { isActive: true },
+    });
+
+    const validIds = ids.filter((id) =>
+      services.some((service) => service.id === id),
+    );
+
+    if (validIds.length === 0) {
+      throw new HttpException(
+        'Không tìm thấy dịch vụ nào để xóa',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.serviceRepository.update(validIds, { isActive: false });
+
+    return {
+      message: `Xóa ${validIds.length} dịch vụ thành công`,
+      count: validIds.length,
+    };
   }
 
   private generateTimeSlots(
