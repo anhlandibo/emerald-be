@@ -9,8 +9,8 @@ export class PayBookingDto {
     description: 'Phương thức thanh toán',
     enum: PaymentMethod,
   })
-  @IsEnum(PaymentMethod, { message: 'Method must be a valid payment method' })
-  @IsNotEmpty({ message: 'Payment method cannot be empty' })
+  @IsEnum(PaymentMethod, { message: 'Phương thức thanh toán không hợp lệ' })
+  @IsNotEmpty({ message: 'Vui lòng chọn phương thức thanh toán' })
   method: PaymentMethod;
 
   @ApiProperty({

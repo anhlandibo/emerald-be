@@ -125,7 +125,8 @@ export class BookingsController {
   async payBooking(
     @Param('id', ParseIntPipe) id: number,
     @Body() payBookingDto: PayBookingDto,
+    @CurrentUser('id') accountId: number,
   ): Promise<BookingResponseDto> {
-    return this.bookingsService.payBooking(id, payBookingDto);
+    return this.bookingsService.payBooking(id, payBookingDto, accountId);
   }
 }
