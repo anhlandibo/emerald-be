@@ -3,11 +3,14 @@ import {
   HttpException,
   HttpStatus,
   BadRequestException,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Issue } from './entities/issue.entity';
 import { Resident } from '../residents/entities/resident.entity';
+import { Block } from '../blocks/entities/block.entity';
 import { CreateIssueDto } from './dtos/create-issue.dto';
 import { QueryIssueDto } from './dtos/query-issue.dto';
 import { RateIssueDto } from './dtos/rate-issue.dto';
@@ -23,6 +26,8 @@ export class IssuesService {
     private readonly issueRepository: Repository<Issue>,
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
+    @InjectRepository(Block)
+    private readonly blockRepository: Repository<Block>,
   ) {}
 
   async create(
@@ -35,9 +40,29 @@ export class IssuesService {
 
     if (!resident) {
       throw new HttpException(
-        'Resident profile không tìm thấy hoặc không hoạt động',
+        'Thông tin cư dân không tồn tại hoặc tài khoản bị khóa',
         HttpStatus.NOT_FOUND,
       );
+    }
+
+    if (createIssueDto.blockId) {
+      const block = await this.blockRepository.findOne({
+        where: { id: createIssueDto.blockId, isActive: true },
+      });
+
+      if (!block) {
+        throw new HttpException(
+          `Tòa với ID ${createIssueDto.blockId} không tồn tại`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      if (createIssueDto.floor && createIssueDto.floor > block.totalFloors) {
+        throw new HttpException(
+          `Tầng ${createIssueDto.floor} không tồn tại`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
     }
 
     const issue = this.issueRepository.create({
@@ -134,7 +159,7 @@ export class IssuesService {
 
     if (!resident) {
       throw new HttpException(
-        'Resident profile không tìm thấy hoặc không hoạt động',
+        'Thông tin cư dân không tồn tại hoặc tài khoản bị khóa',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -171,16 +196,28 @@ export class IssuesService {
   async rate(
     id: number,
     rateIssueDto: RateIssueDto,
+    accountId: number,
   ): Promise<IssueResponseDto> {
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
+    });
+
+    if (!resident) {
+      throw new HttpException(
+        'Thông tin cư dân không tồn tại hoặc tài khoản bị khóa',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     const issue = await this.issueRepository.findOne({
       where: { id, isActive: true },
     });
 
-    if (!issue) {
-      throw new HttpException(
-        `Issue với ID ${id} không tồn tại`,
-        HttpStatus.NOT_FOUND,
-      );
+    if (!issue)
+      throw new NotFoundException(`Phản ánh với ID ${id} không tồn tại`);
+
+    if (issue.reporterId !== resident.id) {
+      throw new ForbiddenException('Bạn không có quyền đánh giá phản ánh này');
     }
 
     if (issue.status !== IssueStatus.RESOLVED) {
@@ -192,7 +229,7 @@ export class IssuesService {
 
     if (issue.rating) {
       throw new HttpException(
-        'Vấn đề đã được đánh giá',
+        'Phản ánh này đã được đánh giá trước đó',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -205,29 +242,39 @@ export class IssuesService {
     return this.findOne(id);
   }
 
-  async remove(id: number): Promise<{ message: string }> {
-    const issue = await this.issueRepository.findOne({
-      where: { id, isActive: true },
+  async remove(id: number, accountId: number): Promise<{ message: string }> {
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
     });
 
-    if (!issue) {
+    if (!resident) {
       throw new HttpException(
-        `Issue với ID ${id} không tồn tại`,
+        'Thông tin cư dân không tồn tại hoặc tài khoản bị khóa',
         HttpStatus.NOT_FOUND,
       );
     }
 
+    const issue = await this.issueRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!issue)
+      throw new NotFoundException(`Phản ánh với ID ${id} không tồn tại`);
+
+    if (issue.reporterId !== resident.id) {
+      throw new ForbiddenException('Bạn không có quyền xóa phản ánh này');
+    }
+
     if (issue.status !== IssueStatus.PENDING) {
-      throw new HttpException(
-        'Chỉ có thể xóa các vấn đề vẫn đang chờ xử lý',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        'Chỉ có thể xóa phản ánh khi còn ở trạng thái chờ tiếp nhận',
       );
     }
 
     issue.isActive = false;
     await this.issueRepository.save(issue);
 
-    return { message: 'Issue deleted successfully' };
+    return { message: 'Xóa phản ánh thành công' };
   }
 
   private validateStatusTransition(
