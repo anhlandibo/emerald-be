@@ -212,6 +212,60 @@ export class MaintenanceTicketsService {
     });
   }
 
+  async findByAssetId(assetId: number, query?: QueryMaintenanceTicketDto) {
+    // Validate asset exists
+    const asset = await this.assetRepository.findOne({
+      where: { id: assetId, isActive: true },
+    });
+
+    if (!asset) {
+      throw new HttpException(
+        `Asset với ID ${assetId} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const { type, status, priority } = query || {};
+
+    const queryBuilder = this.ticketRepository
+      .createQueryBuilder('ticket')
+      .leftJoinAndSelect('ticket.block', 'block')
+      .leftJoinAndSelect('ticket.technician', 'technician')
+      .where('ticket.assetId = :assetId', { assetId })
+      .andWhere('ticket.isActive = :isActive', { isActive: true });
+
+    if (type) {
+      queryBuilder.andWhere('ticket.type = :type', { type });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('ticket.status = :status', { status });
+    }
+
+    if (priority) {
+      queryBuilder.andWhere('ticket.priority = :priority', { priority });
+    }
+
+    queryBuilder.orderBy('ticket.createdAt', 'DESC');
+
+    const tickets = await queryBuilder.getMany();
+
+    return tickets.map((ticket) =>
+      plainToInstance(MaintenanceTicketListItemDto, {
+        id: ticket.id,
+        title: ticket.title,
+        type: ticket.type,
+        priority: ticket.priority,
+        status: ticket.status,
+        assetName: asset.name,
+        blockName: ticket.block?.name,
+        floor: ticket.floor,
+        technicianName: ticket.technician?.fullName,
+        createdAt: ticket.createdAt,
+      }),
+    );
+  }
+
   async assignTechnician(id: number, assignDto: AssignTechnicianDto) {
     const ticket = await this.ticketRepository.findOne({
       where: { id, isActive: true },

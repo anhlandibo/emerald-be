@@ -100,6 +100,31 @@ export class MaintenanceTicketsController {
     return this.maintenanceTicketsService.findOne(id);
   }
 
+  @Get('assets/:assetId')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.ADMIN, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Lấy danh sách phiếu bảo trì của một asset' })
+  @ApiParam({
+    name: 'assetId',
+    description: 'Asset ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Danh sách phiếu bảo trì của asset',
+    type: [MaintenanceTicketListItemDto],
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Asset không tồn tại',
+  })
+  async findByAsset(
+    @Param('assetId', ParseIntPipe) assetId: number,
+    @Query() query?: QueryMaintenanceTicketDto,
+  ) {
+    return this.maintenanceTicketsService.findByAssetId(assetId, query);
+  }
+
   @Post(':id/assign')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.ADMIN)
