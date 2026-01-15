@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -11,19 +13,28 @@ import {
   ClassSerializerInterceptor,
   ParseIntPipe,
   UseGuards,
+  UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiResponse, ApiParam, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ServicesService } from './services.service';
 import { CheckSlotAvailabilityDto } from './dtos/check-slot-availability.dto';
 import { ReserveSlotDto } from './dtos/reserve-slot.dto';
+import { CreateServiceDto } from './dtos/create-service.dto';
+import { UpdateServiceDto } from './dtos/update-service.dto';
+import { DeleteManyServicesDto } from './dtos/delete-many-services.dto';
 import {
   ServiceResponseDto,
   SlotAvailabilityResponseDto,
 } from './dtos/service-response.dto';
+import { ServiceDetailResponseDto } from './dtos/service-detail-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { ApiDoc } from 'src/decorators/api-doc.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { RolesGuard } from 'src/guards/roles.guard';
+import { Roles } from 'src/decorators/role.decorator';
 import { CurrentUser } from 'src/decorators/user.decorator';
+import { UserRole } from '../accounts/enums/user-role.enum';
 
 @ApiTags('Services')
 @Controller('services')
@@ -49,8 +60,9 @@ export class ServicesController {
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   @ApiDoc({
-    summary: 'Lấy thông tin chi tiết của 1 dịch vụ',
-    description: 'Lấy thông tin chi tiết dịch vụ theo ID',
+    summary: 'Lấy thông tin chi tiết của 1 dịch vụ (kèm lịch sử đặt)',
+    description:
+      'Lấy thông tin chi tiết dịch vụ theo ID và danh sách booking history',
   })
   @ApiParam({
     name: 'id',
@@ -59,8 +71,8 @@ export class ServicesController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Service details retrieved successfully',
-    type: ServiceResponseDto,
+    description: 'Service details with booking history retrieved successfully',
+    type: ServiceDetailResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -68,8 +80,8 @@ export class ServicesController {
   })
   async findOne(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<ServiceResponseDto> {
-    return this.servicesService.findOne(id);
+  ): Promise<ServiceDetailResponseDto> {
+    return this.servicesService.findOneWithBookingHistory(id);
   }
 
   @Get(':id/resident')
@@ -142,5 +154,152 @@ export class ServicesController {
       reserveSlotDto,
       accountId,
     );
+  }
+
+  @Post()
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiDoc({
+    summary: 'Tạo dịch vụ mới (Admin)',
+    description: 'Tạo dịch vụ mới với thông tin chi tiết và hình ảnh',
+    auth: true,
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Service created successfully',
+    type: ServiceResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data or image upload failed',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin role required',
+  })
+  async create(
+    @Body() createServiceDto: CreateServiceDto,
+    @UploadedFile() image?: Express.Multer.File,
+  ): Promise<ServiceResponseDto> {
+    return this.servicesService.create(createServiceDto, image);
+  }
+
+  @Patch(':id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'Cập nhật dịch vụ (Admin)',
+    description: 'Cập nhật thông tin dịch vụ theo ID (có thể đổi hình ảnh)',
+    auth: true,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Service ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Service updated successfully',
+    type: ServiceResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Service not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data or image upload failed',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin role required',
+  })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateServiceDto: UpdateServiceDto,
+    @UploadedFile() image?: Express.Multer.File,
+  ): Promise<ServiceResponseDto> {
+    return this.servicesService.update(id, updateServiceDto, image);
+  }
+
+  @Delete(':id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'Xóa mềm dịch vụ (Admin)',
+    description: 'Xóa mềm 1 dịch vụ theo ID (không xóa dữ liệu trong DB)',
+    auth: true,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Service ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Service soft deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Service not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin role required',
+  })
+  async softDelete(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ message: string }> {
+    return this.servicesService.softDelete(id);
+  }
+
+  @Post('delete-many')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'Xóa mềm nhiều dịch vụ (Admin)',
+    description: 'Xóa mềm nhiều dịch vụ theo danh sách ID',
+    auth: true,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Services soft deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data or no services found to delete',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Admin role required',
+  })
+  async softDeleteMultiple(
+    @Body() deleteManyDto: DeleteManyServicesDto,
+  ): Promise<{ message: string; count: number }> {
+    return this.servicesService.softDeleteMultiple(deleteManyDto.ids);
   }
 }
