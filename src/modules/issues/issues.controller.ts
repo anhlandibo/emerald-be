@@ -239,8 +239,9 @@ export class IssuesController {
   async rate(
     @Param('id', ParseIntPipe) id: number,
     @Body() rateIssueDto: RateIssueDto,
+    @CurrentUser('id') accountId: number,
   ): Promise<IssueResponseDto> {
-    return this.issuesService.rate(id, rateIssueDto);
+    return this.issuesService.rate(id, rateIssueDto, accountId);
   }
 
   @Delete(':id')
@@ -270,7 +271,8 @@ export class IssuesController {
   })
   async remove(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('id') accountId: number,
   ): Promise<{ message: string }> {
-    return this.issuesService.remove(id);
+    return this.issuesService.remove(id, accountId);
   }
 }

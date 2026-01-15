@@ -10,15 +10,15 @@ export class CreateIssueDto {
     description: 'Loại phản ánh',
     enum: IssueType,
   })
-  @IsEnum(IssueType, { message: 'Type must be a valid issue type' })
-  @IsNotEmpty({ message: 'Type cannot be empty' })
+  @IsEnum(IssueType, { message: 'Loại phản ánh không hợp lệ' })
+  @IsNotEmpty({ message: 'Vui lòng chọn loại phản ánh' })
   type: IssueType;
 
   @ApiProperty({
     example: 'Thang máy tầng 5 bị hỏng',
     description: 'Tiêu đề phản ánh',
   })
-  @StringRequired('Title')
+  @StringRequired('Tiêu đề')
   title: string;
 
   @ApiProperty({
@@ -36,8 +36,8 @@ export class CreateIssueDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'Block ID must be an integer' })
-  @Min(1, { message: 'Block ID must be >= 1' })
+  @IsInt({ message: 'ID tòa nhà phải là số nguyên' })
+  @Min(1, { message: 'ID tòa nhà không hợp lệ' })
   blockId?: number;
 
   @ApiProperty({
@@ -47,7 +47,7 @@ export class CreateIssueDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'Floor must be an integer' })
+  @IsInt({ message: 'Số tầng phải là số nguyên' })
   floor?: number;
 
   @ApiProperty({
@@ -68,8 +68,8 @@ export class CreateIssueDto {
     required: false,
   })
   @IsOptional()
-  files?: any[]; // Trường này để Swagger hiện nút Upload
+  files?: any[];
 
   @IsOptional()
-  fileUrls?: string[]; // Trường này dùng để lưu URL sau khi upload thành công
+  fileUrls?: string[];
 }
