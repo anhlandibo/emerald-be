@@ -40,6 +40,14 @@ export class MaintenanceTicketListItemDto {
   technicianName?: string;
 
   @Expose()
+  @ApiPropertyOptional({ example: 1500000 })
+  estimatedCost?: number;
+
+  @Expose()
+  @ApiPropertyOptional({ example: 1500000 })
+  actualCost?: number;
+
+  @Expose()
   @ApiProperty({ example: '2026-01-12T08:00:00Z' })
   @Type(() => Date)
   createdAt: Date;

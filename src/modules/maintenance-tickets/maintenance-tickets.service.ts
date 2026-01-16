@@ -346,6 +346,14 @@ export class MaintenanceTicketsService {
         blockName: ticket.block?.name,
         floor: ticket.floor,
         technicianName: ticket.technician?.fullName,
+        estimatedCost:
+          ticket.estimatedCost !== undefined && ticket.estimatedCost !== null
+            ? Number(ticket.estimatedCost)
+            : null,
+        actualCost:
+          ticket.actualCost !== undefined && ticket.actualCost !== null
+            ? Number(ticket.actualCost)
+            : null,
         createdAt: ticket.createdAt,
       }),
     );
@@ -394,10 +402,14 @@ export class MaintenanceTicketsService {
       resultNote: ticket.resultNote,
       hasIssue: ticket.hasIssue,
       issueDetail: ticket.issueDetail,
-      estimatedCost: ticket.estimatedCost
-        ? Number(ticket.estimatedCost)
-        : undefined,
-      actualCost: ticket.actualCost ? Number(ticket.actualCost) : undefined,
+      estimatedCost:
+        ticket.estimatedCost !== undefined && ticket.estimatedCost !== null
+          ? Number(ticket.estimatedCost)
+          : null,
+      actualCost:
+        ticket.actualCost !== undefined && ticket.actualCost !== null
+          ? Number(ticket.actualCost)
+          : null,
       createdAt: ticket.createdAt,
     });
   }
@@ -451,6 +463,14 @@ export class MaintenanceTicketsService {
         blockName: ticket.block?.name,
         floor: ticket.floor,
         technicianName: ticket.technician?.fullName,
+        estimatedCost:
+          ticket.estimatedCost !== undefined && ticket.estimatedCost !== null
+            ? Number(ticket.estimatedCost)
+            : null,
+        actualCost:
+          ticket.actualCost !== undefined && ticket.actualCost !== null
+            ? Number(ticket.actualCost)
+            : null,
         createdAt: ticket.createdAt,
       }),
     );
