@@ -102,4 +102,8 @@ export class IssueResponseDto {
   @ApiProperty({ example: '2024-01-20T15:00:00Z', nullable: true })
   @Expose()
   estimatedCompletionDate: Date;
+
+  @ApiProperty({ example: true })
+  @Expose()
+  assignedToTechnicianDepartment: boolean;
 }

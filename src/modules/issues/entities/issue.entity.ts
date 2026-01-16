@@ -57,6 +57,9 @@ export class Issue {
   @Column({ type: 'text', nullable: true })
   feedback: string;
 
+  @Column({ type: 'text', name: 'rejection_reason', nullable: true })
+  rejectionReason: string;
+
   @Column({ type: 'boolean', name: 'is_urgent', default: false })
   isUrgent: boolean;
 
@@ -73,6 +76,13 @@ export class Issue {
     nullable: true,
   })
   maintenanceTicketId: number;
+
+  @Column({
+    type: 'boolean',
+    name: 'assigned_to_technician_department',
+    default: false,
+  })
+  assignedToTechnicianDepartment: boolean;
 
   @Column({ type: 'boolean', name: 'is_active', default: true })
   isActive: boolean;
