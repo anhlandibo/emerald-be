@@ -77,6 +77,13 @@ export class Issue {
   })
   maintenanceTicketId: number;
 
+  @Column({
+    type: 'boolean',
+    name: 'assigned_to_technician_department',
+    default: false,
+  })
+  assignedToTechnicianDepartment: boolean;
+
   @Column({ type: 'boolean', name: 'is_active', default: true })
   isActive: boolean;
 

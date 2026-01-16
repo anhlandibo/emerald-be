@@ -15,7 +15,13 @@ import {
   UseGuards,
   UploadedFiles,
 } from '@nestjs/common';
-import { ApiTags, ApiResponse, ApiParam, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiResponse,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { IssuesService } from './issues.service';
 import { CreateIssueDto } from './dtos/create-issue.dto';
@@ -23,6 +29,8 @@ import { UpdateIssueDto } from './dtos/update-issue.dto';
 import { QueryIssueDto } from './dtos/query-issue.dto';
 import { RateIssueDto } from './dtos/rate-issue.dto';
 import { RejectIssueDto } from './dtos/reject-issue.dto';
+import { DeleteManyIssuesDto } from './dtos/delete-many-issues.dto';
+import { UpdateIssueStatusDto } from './dtos/update-issue-status.dto';
 import { IssueResponseDto } from './dtos/issue-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { ApiDoc } from 'src/decorators/api-doc.decorator';
@@ -310,5 +318,104 @@ export class IssuesController {
     @CurrentUser('id') accountId: number,
   ): Promise<{ message: string }> {
     return this.issuesService.remove(id, accountId);
+  }
+
+  @Post('delete-many')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'Cư dân xóa nhiều phản ánh cùng lúc',
+    description:
+      'Soft delete nhiều phản ánh - chỉ được xóa khi status còn PENDING',
+    auth: true,
+  })
+  @ApiBody({
+    type: DeleteManyIssuesDto,
+    description: 'Array of issue IDs to delete',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Issues deleted successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No pending issues found with provided IDs',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid IDs or issues not in PENDING status',
+  })
+  async removeMany(
+    @Body() deleteManyIssuesDto: DeleteManyIssuesDto,
+  ): Promise<{ message: string; deletedCount: number }> {
+    return this.issuesService.removeMany(deleteManyIssuesDto.ids);
+  }
+
+  @Patch(':id/assign-technician-department')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'BQL/Admin chuyển phản ánh cho bộ phận kỹ thuật vận hành',
+    description:
+      'Chuyển phản ánh cho bộ phận kỹ thuật vận hành để xử lý. ' +
+      'Tất cả các thành viên bộ phận kỹ thuật sẽ thấy phản ánh này. ' +
+      'Tự động nâng cấp từ "Chờ tiếp nhận" sang "Đã tiếp nhận" khi chuyển.',
+    auth: true,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Issue ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Issue assigned to technician department successfully',
+    type: IssueResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Issue not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot assign issue in this status (REJECTED or RESOLVED)',
+  })
+  async assignToTechnicianDepartment(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<IssueResponseDto> {
+    return this.issuesService.assignToTechnicianDepartment(id);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'BQL/Admin cập nhật trạng thái phản ánh',
+    description: 'Cập nhật trạng thái phản ánh theo quy trình xử lý',
+    auth: true,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Issue ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Issue status updated successfully',
+    type: IssueResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Issue not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid status transition',
+  })
+  async updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateStatusDto: UpdateIssueStatusDto,
+  ): Promise<IssueResponseDto> {
+    return this.issuesService.updateStatus(id, updateStatusDto);
   }
 }

@@ -7,7 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Issue } from './entities/issue.entity';
 import { Resident } from '../residents/entities/resident.entity';
 import { Block } from '../blocks/entities/block.entity';
@@ -16,6 +16,7 @@ import { QueryIssueDto } from './dtos/query-issue.dto';
 import { RateIssueDto } from './dtos/rate-issue.dto';
 import { UpdateIssueDto } from './dtos/update-issue.dto';
 import { RejectIssueDto } from './dtos/reject-issue.dto';
+import { UpdateIssueStatusDto } from './dtos/update-issue-status.dto';
 import { IssueTypeLabels } from './enums/issue-type.enum';
 import { IssueStatus, IssueStatusLabels } from './enums/issue-status.enum';
 import { IssueResponseDto } from './dtos/issue-response.dto';
@@ -334,6 +335,7 @@ export class IssuesService {
         : null,
       estimatedCompletionDate: issue.estimatedCompletionDate,
       // maintenanceTicketId: issue.maintenanceTicketId,
+      assignedToTechnicianDepartment: issue.assignedToTechnicianDepartment,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
     };
@@ -369,6 +371,125 @@ export class IssuesService {
     // Update issue with rejection status and reason
     issue.status = IssueStatus.REJECTED;
     issue.rejectionReason = rejectIssueDto.rejectionReason;
+    issue.updatedAt = new Date();
+
+    const updatedIssue = await this.issueRepository.save(issue);
+    return this.findOne(updatedIssue.id);
+  }
+
+  /**
+   * Soft delete multiple issues
+   * Only PENDING status issues can be deleted
+   */
+  async removeMany(
+    ids: number[],
+  ): Promise<{ message: string; deletedCount: number }> {
+    if (!ids || ids.length === 0) {
+      throw new HttpException(
+        'At least one issue ID is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Find all PENDING issues with provided IDs
+    const issues = await this.issueRepository.find({
+      where: {
+        id: In(ids),
+        status: IssueStatus.PENDING,
+        isActive: true,
+      },
+    });
+
+    if (issues.length === 0) {
+      throw new HttpException(
+        'Không tìm thấy phản ánh nào ở trạng thái "Chờ tiếp nhận" để xóa',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if all provided IDs exist as PENDING
+    const foundIds = issues.map((issue) => issue.id);
+    const notFoundIds = ids.filter((id) => !foundIds.includes(id));
+
+    if (notFoundIds.length > 0) {
+      throw new HttpException(
+        `Phản ánh với ID ${notFoundIds.join(', ')} không ở trạng thái "Chờ tiếp nhận" hoặc không tồn tại`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Soft delete all matching issues
+    await this.issueRepository.update(
+      { id: In(foundIds) },
+      { isActive: false, updatedAt: new Date() },
+    );
+
+    return {
+      message: `Xóa ${issues.length} phản ánh thành công`,
+      deletedCount: issues.length,
+    };
+  }
+
+  /**
+   * Assign issue to technician department
+   * Any issue with valid status can be assigned to technician department
+   */
+  async assignToTechnicianDepartment(id: number): Promise<IssueResponseDto> {
+    const issue = await this.issueRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!issue) {
+      throw new HttpException('Phản ánh không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Validate issue status - cannot assign REJECTED issues
+    if (issue.status === IssueStatus.REJECTED) {
+      throw new HttpException(
+        'Không thể chuyển phản ánh đã bị từ chối cho bộ phận kỹ thuật',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (issue.status === IssueStatus.RESOLVED) {
+      throw new HttpException(
+        'Không thể chuyển phản ánh đã được giải quyết cho bộ phận kỹ thuật',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Auto-promote PENDING to RECEIVED when assigning to technician department
+    if (issue.status === IssueStatus.PENDING) {
+      issue.status = IssueStatus.RECEIVED;
+    }
+
+    // Mark as assigned to technician department
+    issue.assignedToTechnicianDepartment = true;
+    issue.updatedAt = new Date();
+
+    const updatedIssue = await this.issueRepository.save(issue);
+    return this.findOne(updatedIssue.id);
+  }
+
+  /**
+   * Update issue status with validation
+   */
+  async updateStatus(
+    id: number,
+    updateStatusDto: UpdateIssueStatusDto,
+  ): Promise<IssueResponseDto> {
+    const issue = await this.issueRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!issue) {
+      throw new HttpException('Phản ánh không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Validate status transition
+    this.validateStatusTransition(issue.status, updateStatusDto.status);
+
+    issue.status = updateStatusDto.status;
     issue.updatedAt = new Date();
 
     const updatedIssue = await this.issueRepository.save(issue);
