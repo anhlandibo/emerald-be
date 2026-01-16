@@ -74,12 +74,8 @@ export class VNPayService {
 
     const sortedParams = this.sortObject(params);
 
-    // Build sign data manually to avoid double encoding
-    // URLSearchParams will re-encode already-encoded values
-    const signDataArray = Object.keys(sortedParams).map(
-      (key) => `${key}=${sortedParams[key]}`,
-    );
-    const signData = signDataArray.join('&');
+    // Build sign data using URLSearchParams (same as VNPay does)
+    const signData = new URLSearchParams(sortedParams).toString();
 
     const hmac = crypto.createHmac('sha512', this.hashSecret);
     const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
@@ -98,6 +94,7 @@ export class VNPayService {
       );
       console.log('[VNPay] Calculated Hash:', signed?.substring(0, 20) + '...');
       console.log('[VNPay] Sign Data:', signData);
+      console.log('[VNPay] Params:', sortedParams);
     }
     return isValid;
   }

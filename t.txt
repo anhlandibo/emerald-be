@@ -1,0 +1,5 @@
+Hướng dẫn test VNPAY: https://sandbox.vnpayment.vn/apis/vnpay-demo/
+
+MOMO: Tải app MoMo UAT, đăng ký, xác thực, ...
+
+BACKEND_URL trong .env mỗi lần start app dùng ngrok để tạo địa chỉ bên ngoài nhé.

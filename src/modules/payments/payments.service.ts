@@ -129,15 +129,19 @@ export class PaymentsService {
         });
         paymentUrl = momoResult.payUrl;
       } else if (paymentMethod === PaymentGateway.VNPAY) {
+        const ipnUrl = `${process.env.BACKEND_URL}/api/v1/payments/webhook/vnpay`;
+        console.log('[Payment] Creating VNPay payment with IPN URL:', ipnUrl);
+
         const vnpayResult = this.vnpayService.createPayment({
           orderId: txnRef,
           amount: amount,
           orderInfo: description,
-          returnUrl: `${process.env.FE_URL}/payments/result`,
-          ipnUrl: `${process.env.BE_URL}/api/v1/payments/webhook/vnpay`,
+          returnUrl: `${process.env.FRONTEND_URL}/payments/result`,
+          ipnUrl: ipnUrl,
           ipAddr: '127.0.0.1',
         });
         paymentUrl = vnpayResult.payUrl;
+        console.log('[Payment] VNPay payment URL created:', paymentUrl);
       } else {
         throw new BadRequestException('Payment gateway không được hỗ trợ');
       }
@@ -255,22 +259,40 @@ export class PaymentsService {
     // Deep clone to avoid modifying original data
     const dataCopy = { ...data };
 
+    console.log('[VNPay Webhook] Received:', {
+      vnp_TxnRef: data.vnp_TxnRef,
+      vnp_ResponseCode: data.vnp_ResponseCode,
+      vnp_Amount: data.vnp_Amount,
+    });
+
     // Verify signature
     const isValid = this.vnpayService.verifySignature(dataCopy);
+    console.log('[VNPay Webhook] Signature valid:', isValid);
+
     if (!isValid) {
+      console.error('[VNPay Webhook] Signature verification failed');
       throw new BadRequestException('Invalid signature');
     }
 
     const { vnp_TxnRef, vnp_ResponseCode, vnp_TransactionNo, vnp_PayDate } =
       data;
 
+    console.log('[VNPay Webhook] Looking for payment:', vnp_TxnRef);
+
     const payment = await this.paymentRepository.findOne({
       where: { txnRef: vnp_TxnRef },
     });
 
     if (!payment) {
+      console.error('[VNPay Webhook] Payment not found:', vnp_TxnRef);
       throw new NotFoundException('Payment not found');
     }
+
+    console.log('[VNPay Webhook] Found payment:', {
+      id: payment.id,
+      txnRef: payment.txnRef,
+      currentStatus: payment.status,
+    });
 
     // Update payment
     payment.gatewayTxnId = vnp_TransactionNo;
@@ -283,11 +305,19 @@ export class PaymentsService {
       payment.payDate = this.parseVNPayDate(vnp_PayDate);
       await this.paymentRepository.save(payment);
 
+      console.log('[VNPay Webhook] Payment marked SUCCESS:', payment.id);
+
       // Update target status
       await this.updateTargetStatus(payment);
+
+      console.log('[VNPay Webhook] Target status updated:', {
+        targetType: payment.targetType,
+        targetId: payment.targetId,
+      });
     } else {
       payment.status = PaymentStatus.FAILED;
       await this.paymentRepository.save(payment);
+      console.log('[VNPay Webhook] Payment marked FAILED:', payment.id);
     }
 
     return { message: 'Webhook processed successfully' };
