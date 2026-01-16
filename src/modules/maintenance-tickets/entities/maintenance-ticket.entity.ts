@@ -11,7 +11,6 @@ import { TicketStatus } from '../enums/ticket-status.enum';
 import { TicketPriority } from '../enums/ticket-priority.enum';
 import { MaintenanceResult } from '../enums/maintenance-result.enum';
 import { Block } from '../../blocks/entities/block.entity';
-import { Apartment } from '../../apartments/entities/apartment.entity';
 import { Asset } from '../../assets/entities/asset.entity';
 import { Technician } from '../../technicians/entities/technician.entity';
 
@@ -46,13 +45,6 @@ export class MaintenanceTicket {
 
   @Column({ type: 'int', nullable: false })
   floor: number;
-
-  @Column({ type: 'int', nullable: true, name: 'apartment_id' })
-  apartmentId?: number;
-
-  @ManyToOne(() => Apartment)
-  @JoinColumn({ name: 'apartment_id' })
-  apartment?: Apartment;
 
   @Column({ type: 'int', nullable: true, name: 'asset_id' })
   assetId?: number;
@@ -108,33 +100,6 @@ export class MaintenanceTicket {
     precision: 15,
     scale: 2,
     nullable: true,
-    name: 'material_cost',
-  })
-  materialCost?: number;
-
-  @Column({
-    type: 'decimal',
-    precision: 15,
-    scale: 2,
-    nullable: true,
-    name: 'labor_cost',
-  })
-  laborCost?: number;
-
-  @Column({
-    type: 'decimal',
-    precision: 15,
-    scale: 2,
-    nullable: true,
-    name: 'total_cost',
-  })
-  totalCost?: number;
-
-  @Column({
-    type: 'decimal',
-    precision: 15,
-    scale: 2,
-    nullable: true,
     name: 'estimated_cost',
   })
   estimatedCost?: number;
@@ -147,6 +112,13 @@ export class MaintenanceTicket {
     name: 'actual_cost',
   })
   actualCost?: number;
+
+  // Chứng minh cho incident
+  @Column({ type: 'varchar', nullable: true, name: 'evidence_image' })
+  evidenceImage?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'evidence_video' })
+  evidenceVideo?: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

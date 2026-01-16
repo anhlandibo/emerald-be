@@ -1,12 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsEnum,
-  IsOptional,
-  IsDateString,
-} from 'class-validator';
-import { TicketPriority } from '../enums/ticket-priority.enum';
+import { IsInt, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class AssignTechnicianDto {
   @ApiProperty({
@@ -17,20 +11,13 @@ export class AssignTechnicianDto {
   @IsNotEmpty()
   technicianId: number;
 
-  @ApiPropertyOptional({
-    example: TicketPriority.HIGH,
-    enum: TicketPriority,
-    description: 'Update priority if needed',
+  @ApiProperty({
+    example: 800000,
+    description: 'Estimated cost for this maintenance',
   })
-  @IsEnum(TicketPriority)
-  @IsOptional()
-  priority?: TicketPriority;
-
-  @ApiPropertyOptional({
-    example: '2026-01-12T09:00:00Z',
-    description: 'Scheduled date for the assignment',
-  })
-  @IsDateString()
-  @IsOptional()
-  assignedDate?: string;
+  @IsNumber()
+  @Min(0, { message: 'Chi phí dự kiến phải >= 0' })
+  @IsNotEmpty({ message: 'Chi phí dự kiến không được để trống' })
+  @Type(() => Number)
+  estimatedCost: number;
 }
