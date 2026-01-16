@@ -3,6 +3,7 @@ export enum IssueStatus {
   RECEIVED = 'RECEIVED',
   PROCESSING = 'PROCESSING',
   RESOLVED = 'RESOLVED',
+  REJECTED = 'REJECTED',
 }
 
 export const IssueStatusLabels = {
@@ -10,4 +11,5 @@ export const IssueStatusLabels = {
   [IssueStatus.RECEIVED]: 'Đã tiếp nhận',
   [IssueStatus.PROCESSING]: 'Đang xử lý',
   [IssueStatus.RESOLVED]: 'Đã giải quyết',
+  [IssueStatus.REJECTED]: 'Đã từ chối',
 };

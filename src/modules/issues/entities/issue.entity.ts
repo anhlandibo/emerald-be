@@ -57,6 +57,9 @@ export class Issue {
   @Column({ type: 'text', nullable: true })
   feedback: string;
 
+  @Column({ type: 'text', name: 'rejection_reason', nullable: true })
+  rejectionReason: string;
+
   @Column({ type: 'boolean', name: 'is_urgent', default: false })
   isUrgent: boolean;
 

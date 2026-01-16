@@ -22,6 +22,7 @@ import { CreateIssueDto } from './dtos/create-issue.dto';
 import { UpdateIssueDto } from './dtos/update-issue.dto';
 import { QueryIssueDto } from './dtos/query-issue.dto';
 import { RateIssueDto } from './dtos/rate-issue.dto';
+import { RejectIssueDto } from './dtos/reject-issue.dto';
 import { IssueResponseDto } from './dtos/issue-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { ApiDoc } from 'src/decorators/api-doc.decorator';
@@ -208,6 +209,41 @@ export class IssuesController {
     @Body() updateIssueDto: UpdateIssueDto,
   ): Promise<IssueResponseDto> {
     return this.issuesService.update(id, updateIssueDto);
+  }
+
+  @Post(':id/reject')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'BQL/Admin từ chối xử lý phản ánh',
+    description:
+      'BQL/Admin từ chối tiếp nhận hoặc xử lý phản ánh kèm lý do. ' +
+      'Chỉ có thể từ chối phản ánh ở trạng thái "Chờ tiếp nhận" hoặc "Đã tiếp nhận".',
+    auth: true,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Issue ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Issue rejected successfully',
+    type: IssueResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Issue not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot reject issue in this status',
+  })
+  async reject(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() rejectIssueDto: RejectIssueDto,
+  ): Promise<IssueResponseDto> {
+    return this.issuesService.reject(id, rejectIssueDto);
   }
 
   @Post(':id/rate')

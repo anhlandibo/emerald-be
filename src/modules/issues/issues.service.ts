@@ -15,6 +15,7 @@ import { CreateIssueDto } from './dtos/create-issue.dto';
 import { QueryIssueDto } from './dtos/query-issue.dto';
 import { RateIssueDto } from './dtos/rate-issue.dto';
 import { UpdateIssueDto } from './dtos/update-issue.dto';
+import { RejectIssueDto } from './dtos/reject-issue.dto';
 import { IssueTypeLabels } from './enums/issue-type.enum';
 import { IssueStatus, IssueStatusLabels } from './enums/issue-status.enum';
 import { IssueResponseDto } from './dtos/issue-response.dto';
@@ -282,10 +283,15 @@ export class IssuesService {
     newStatus: IssueStatus,
   ): void {
     const validTransitions: Record<IssueStatus, IssueStatus[]> = {
-      [IssueStatus.PENDING]: [IssueStatus.RECEIVED],
-      [IssueStatus.RECEIVED]: [IssueStatus.PROCESSING, IssueStatus.PENDING],
+      [IssueStatus.PENDING]: [IssueStatus.RECEIVED, IssueStatus.REJECTED],
+      [IssueStatus.RECEIVED]: [
+        IssueStatus.PROCESSING,
+        IssueStatus.PENDING,
+        IssueStatus.REJECTED,
+      ],
       [IssueStatus.PROCESSING]: [IssueStatus.RESOLVED, IssueStatus.RECEIVED],
       [IssueStatus.RESOLVED]: [],
+      [IssueStatus.REJECTED]: [],
     };
 
     const allowedStatuses = validTransitions[currentStatus];
@@ -331,5 +337,41 @@ export class IssuesService {
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
     };
+  }
+
+  /**
+   * Reject an issue with reason
+   * Only PENDING and RECEIVED status can be rejected
+   */
+  async reject(
+    id: number,
+    rejectIssueDto: RejectIssueDto,
+  ): Promise<IssueResponseDto> {
+    const issue = await this.issueRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!issue) {
+      throw new NotFoundException('Phản ánh không tồn tại');
+    }
+
+    // Only PENDING and RECEIVED can be rejected
+    if (
+      issue.status !== IssueStatus.PENDING &&
+      issue.status !== IssueStatus.RECEIVED
+    ) {
+      throw new BadRequestException(
+        `Không thể từ chối phản ánh ở trạng thái ${IssueStatusLabels[issue.status]}. ` +
+          'Chỉ có thể từ chối phản ánh ở trạng thái "Chờ tiếp nhận" hoặc "Đã tiếp nhận".',
+      );
+    }
+
+    // Update issue with rejection status and reason
+    issue.status = IssueStatus.REJECTED;
+    issue.rejectionReason = rejectIssueDto.rejectionReason;
+    issue.updatedAt = new Date();
+
+    const updatedIssue = await this.issueRepository.save(issue);
+    return this.findOne(updatedIssue.id);
   }
 }
