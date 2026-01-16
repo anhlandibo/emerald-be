@@ -41,12 +41,8 @@ export class MaintenanceTicketDetailDto {
   floor: number;
 
   @Expose()
-  @ApiPropertyOptional({ example: 101 })
-  apartmentId?: number;
-
-  @Expose()
-  @ApiPropertyOptional({ example: 'A-101' })
-  apartmentNumber?: string;
+  @ApiPropertyOptional({ example: 'Góc tây bắc tầng 1' })
+  locationDetail?: string;
 
   @Expose()
   @ApiPropertyOptional({ example: 105 })
@@ -112,27 +108,5 @@ export class MaintenanceTicketDetailDto {
 
   // Cost
   @Expose()
-  @ApiPropertyOptional({ example: 500000 })
-  materialCost?: number;
-
-  @Expose()
-  @ApiPropertyOptional({ example: 200000 })
-  laborCost?: number;
-
-  @Expose()
-  @ApiPropertyOptional({ example: 700000 })
-  totalCost?: number;
-
-  @Expose()
-  @ApiPropertyOptional({ example: 800000 })
-  estimatedCost?: number;
-
-  @Expose()
-  @ApiPropertyOptional({ example: 700000 })
-  actualCost?: number;
-
-  @Expose()
-  @ApiProperty({ type: Date })
-  @Type(() => Date)
   createdAt: Date;
 }

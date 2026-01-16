@@ -4,15 +4,20 @@ import { Repository, In } from 'typeorm';
 import { MaintenanceTicket } from './entities/maintenance-ticket.entity';
 import { Asset } from '../assets/entities/asset.entity';
 import { Block } from '../blocks/entities/block.entity';
-import { Apartment } from '../apartments/entities/apartment.entity';
 import { Technician } from '../technicians/entities/technician.entity';
 import { AssetsService } from '../assets/assets.service';
+import { SupabaseStorageService } from '../supabase-storage/supabase-storage.service';
 import { CreateMaintenanceTicketDto } from './dto/create-maintenance-ticket.dto';
+import { CreateIncidentMaintenanceTicketDto } from './dtos/create-incident-maintenance-ticket.dto';
+import { CreateScheduledMaintenanceTicketDto } from './dtos/create-scheduled-maintenance-ticket.dto';
 import { UpdateMaintenanceTicketDto } from './dto/update-maintenance-ticket.dto';
+import { UpdateIncidentMaintenanceTicketDto } from './dtos/update-incident-maintenance-ticket.dto';
+import { UpdateScheduledMaintenanceTicketDto } from './dtos/update-scheduled-maintenance-ticket.dto';
+import { CompleteIncidentMaintenanceTicketDto } from './dtos/complete-incident-maintenance-ticket.dto';
+import { CompleteScheduledMaintenanceTicketDto } from './dtos/complete-scheduled-maintenance-ticket.dto';
 import { DeleteManyMaintenanceTicketsDto } from './dto/delete-many-maintenance-tickets.dto';
 import { AssignTechnicianDto } from './dto/assign-technician.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
-import { CompleteMaintenanceDto } from './dto/complete-maintenance.dto';
 import { CancelTicketDto } from './dto/cancel-ticket.dto';
 import { QueryMaintenanceTicketDto } from './dto/query-maintenance-ticket.dto';
 import { TicketStatus } from './enums/ticket-status.enum';
@@ -33,52 +38,40 @@ export class MaintenanceTicketsService {
     private readonly assetRepository: Repository<Asset>,
     @InjectRepository(Block)
     private readonly blockRepository: Repository<Block>,
-    @InjectRepository(Apartment)
-    private readonly apartmentRepository: Repository<Apartment>,
     @InjectRepository(Technician)
     private readonly technicianRepository: Repository<Technician>,
     private readonly assetsService: AssetsService,
+    private readonly supabaseStorageService: SupabaseStorageService,
   ) {}
 
-  async create(createDto: CreateMaintenanceTicketDto) {
-    // Validate Block exists
-    const block = await this.blockRepository.findOne({
-      where: { id: createDto.blockId, isActive: true },
+  async createIncident(createDto: CreateIncidentMaintenanceTicketDto) {
+    // Validate Asset exists
+    const asset = await this.assetRepository.findOne({
+      where: { id: createDto.assetId, isActive: true },
+      relations: ['block'],
     });
 
-    if (!block) {
+    if (!asset) {
       throw new HttpException(
-        `Block với ID ${createDto.blockId} không tồn tại`,
+        `Asset với ID ${createDto.assetId} không tồn tại`,
         HttpStatus.NOT_FOUND,
       );
     }
 
-    // Validate Asset if provided
-    if (createDto.assetId) {
-      const asset = await this.assetRepository.findOne({
-        where: { id: createDto.assetId, isActive: true },
-      });
+    // Extract blockId and floor from asset
+    const blockId = asset.blockId;
+    const floor = asset.floor;
 
-      if (!asset) {
-        throw new HttpException(
-          `Asset với ID ${createDto.assetId} không tồn tại`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-    }
+    // Validate Block exists
+    const block = await this.blockRepository.findOne({
+      where: { id: blockId, isActive: true },
+    });
 
-    // Validate Apartment if provided
-    if (createDto.apartmentId) {
-      const apartment = await this.apartmentRepository.findOne({
-        where: { id: createDto.apartmentId },
-      });
-
-      if (!apartment) {
-        throw new HttpException(
-          `Apartment với ID ${createDto.apartmentId} không tồn tại`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
+    if (!block) {
+      throw new HttpException(
+        `Block với ID ${blockId} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const ticket = this.ticketRepository.create({
@@ -86,9 +79,57 @@ export class MaintenanceTicketsService {
       description: createDto.description,
       type: createDto.type,
       priority: createDto.priority || TicketPriority.MEDIUM,
-      blockId: createDto.blockId,
-      floor: createDto.floor,
-      apartmentId: createDto.apartmentId,
+      blockId: blockId,
+      floor: floor,
+      startedDate: new Date(),
+      assetId: createDto.assetId,
+      status: TicketStatus.PENDING,
+    });
+
+    const savedTicket = await this.ticketRepository.save(ticket);
+    return this.findOne(savedTicket.id);
+  }
+
+  async createScheduledMaintenance(
+    createDto: CreateScheduledMaintenanceTicketDto,
+  ) {
+    // Validate Asset exists
+    const asset = await this.assetRepository.findOne({
+      where: { id: createDto.assetId, isActive: true },
+      relations: ['block'],
+    });
+
+    if (!asset) {
+      throw new HttpException(
+        `Asset với ID ${createDto.assetId} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Extract blockId and floor from asset
+    const blockId = asset.blockId;
+    const floor = asset.floor;
+
+    // Validate Block exists
+    const block = await this.blockRepository.findOne({
+      where: { id: blockId, isActive: true },
+    });
+
+    if (!block) {
+      throw new HttpException(
+        `Block với ID ${blockId} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const ticket = this.ticketRepository.create({
+      title: createDto.title,
+      description: createDto.description,
+      type: createDto.type,
+      priority: TicketPriority.MEDIUM,
+      blockId: blockId,
+      floor: floor,
+      startedDate: new Date(),
       assetId: createDto.assetId,
       checklistItems: createDto.checklistItems,
       status: TicketStatus.PENDING,
@@ -96,6 +137,162 @@ export class MaintenanceTicketsService {
 
     const savedTicket = await this.ticketRepository.save(ticket);
     return this.findOne(savedTicket.id);
+  }
+
+  async updateIncident(
+    id: number,
+    updateDto: UpdateIncidentMaintenanceTicketDto,
+  ) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id, isActive: true },
+      relations: ['block', 'asset', 'asset.block'],
+    });
+
+    if (!ticket) {
+      throw new HttpException(
+        `Ticket với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Only allow update for PENDING or ASSIGNED tickets
+    if (
+      ticket.status !== TicketStatus.PENDING &&
+      ticket.status !== TicketStatus.ASSIGNED
+    ) {
+      throw new HttpException(
+        'Chỉ có thể cập nhật ticket ở trạng thái PENDING hoặc ASSIGNED',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // If assetId is being updated, validate and extract blockId/floor from new asset
+    if (updateDto.assetId && updateDto.assetId !== ticket.assetId) {
+      const asset = await this.assetRepository.findOne({
+        where: { id: updateDto.assetId, isActive: true },
+        relations: ['block'],
+      });
+
+      if (!asset) {
+        throw new HttpException(
+          `Asset với ID ${updateDto.assetId} không tồn tại`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Extract blockId and floor from asset
+      const blockId = asset.blockId;
+      const floor = asset.floor;
+
+      // Validate Block
+      const block = await this.blockRepository.findOne({
+        where: { id: blockId, isActive: true },
+      });
+
+      if (!block) {
+        throw new HttpException(
+          `Block với ID ${blockId} không tồn tại`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      Object.assign(ticket, {
+        title: updateDto.title,
+        description: updateDto.description,
+        priority: updateDto.priority,
+        assetId: updateDto.assetId,
+        blockId: blockId,
+        floor: floor,
+      });
+    } else {
+      // Only update title, description, priority if assetId not changed
+      Object.assign(ticket, {
+        title: updateDto.title,
+        description: updateDto.description,
+        priority: updateDto.priority,
+      });
+    }
+
+    await this.ticketRepository.save(ticket);
+    return this.findOne(id);
+  }
+
+  async updateScheduledMaintenance(
+    id: number,
+    updateDto: UpdateScheduledMaintenanceTicketDto,
+  ) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id, isActive: true },
+      relations: ['block', 'asset', 'asset.block'],
+    });
+
+    if (!ticket) {
+      throw new HttpException(
+        `Ticket với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Only allow update for PENDING or ASSIGNED tickets
+    if (
+      ticket.status !== TicketStatus.PENDING &&
+      ticket.status !== TicketStatus.ASSIGNED
+    ) {
+      throw new HttpException(
+        'Chỉ có thể cập nhật ticket ở trạng thái PENDING hoặc ASSIGNED',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // If assetId is being updated, validate and extract blockId/floor from new asset
+    if (updateDto.assetId && updateDto.assetId !== ticket.assetId) {
+      const asset = await this.assetRepository.findOne({
+        where: { id: updateDto.assetId, isActive: true },
+        relations: ['block'],
+      });
+
+      if (!asset) {
+        throw new HttpException(
+          `Asset với ID ${updateDto.assetId} không tồn tại`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Extract blockId and floor from asset
+      const blockId = asset.blockId;
+      const floor = asset.floor;
+
+      // Validate Block
+      const block = await this.blockRepository.findOne({
+        where: { id: blockId, isActive: true },
+      });
+
+      if (!block) {
+        throw new HttpException(
+          `Block với ID ${blockId} không tồn tại`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      Object.assign(ticket, {
+        title: updateDto.title,
+        description: updateDto.description,
+        assetId: updateDto.assetId,
+        blockId: blockId,
+        floor: floor,
+        checklistItems: updateDto.checklistItems || ticket.checklistItems,
+      });
+    } else {
+      // Only update title, description, checklistItems if assetId not changed
+      Object.assign(ticket, {
+        title: updateDto.title,
+        description: updateDto.description,
+        checklistItems: updateDto.checklistItems || ticket.checklistItems,
+      });
+    }
+
+    await this.ticketRepository.save(ticket);
+    return this.findOne(id);
   }
 
   async findAll(query: QueryMaintenanceTicketDto) {
@@ -158,7 +355,6 @@ export class MaintenanceTicketsService {
     const ticket = await this.ticketRepository
       .createQueryBuilder('ticket')
       .leftJoinAndSelect('ticket.block', 'block')
-      .leftJoinAndSelect('ticket.apartment', 'apartment')
       .leftJoinAndSelect('ticket.asset', 'asset')
       .leftJoinAndSelect('asset.type', 'assetType')
       .leftJoinAndSelect('ticket.technician', 'technician')
@@ -183,8 +379,7 @@ export class MaintenanceTicketsService {
       blockId: ticket.blockId,
       blockName: ticket.block?.name,
       floor: ticket.floor,
-      apartmentId: ticket.apartmentId,
-      apartmentNumber: ticket.apartment?.name,
+      locationDetail: ticket.asset?.locationDetail,
       assetId: ticket.assetId,
       assetName: ticket.asset?.name,
       assetTypeName: ticket.asset?.type?.name,
@@ -199,11 +394,6 @@ export class MaintenanceTicketsService {
       resultNote: ticket.resultNote,
       hasIssue: ticket.hasIssue,
       issueDetail: ticket.issueDetail,
-      materialCost: ticket.materialCost
-        ? Number(ticket.materialCost)
-        : undefined,
-      laborCost: ticket.laborCost ? Number(ticket.laborCost) : undefined,
-      totalCost: ticket.totalCost ? Number(ticket.totalCost) : undefined,
       estimatedCost: ticket.estimatedCost
         ? Number(ticket.estimatedCost)
         : undefined,
@@ -291,17 +481,9 @@ export class MaintenanceTicketsService {
     }
 
     ticket.technicianId = assignDto.technicianId;
+    ticket.estimatedCost = assignDto.estimatedCost;
     ticket.status = TicketStatus.ASSIGNED;
-
-    if (assignDto.priority) {
-      ticket.priority = assignDto.priority;
-    }
-
-    if (assignDto.assignedDate) {
-      ticket.assignedDate = new Date(assignDto.assignedDate);
-    } else {
-      ticket.assignedDate = new Date();
-    }
+    ticket.assignedDate = new Date();
 
     await this.ticketRepository.save(ticket);
     return this.findOne(id);
@@ -360,7 +542,12 @@ export class MaintenanceTicketsService {
     return this.findOne(id);
   }
 
-  async complete(id: number, completeDto: CompleteMaintenanceDto) {
+  async completeIncident(
+    id: number,
+    completeDto: CompleteIncidentMaintenanceTicketDto,
+    imageFile?: Express.Multer.File,
+    videoFile?: Express.Multer.File,
+  ) {
     const ticket = await this.ticketRepository.findOne({
       where: { id, isActive: true },
     });
@@ -379,20 +566,118 @@ export class MaintenanceTicketsService {
       );
     }
 
-    // Calculate total cost
-    const materialCost = completeDto.materialCost || 0;
-    const laborCost = completeDto.laborCost || 0;
-    const totalCost = materialCost + laborCost;
+    // Upload image and video to Supabase Storage if provided
+    let imageUrl: string | undefined;
+    let videoUrl: string | undefined;
+
+    if (imageFile) {
+      try {
+        imageUrl = await this.supabaseStorageService.uploadFile(
+          imageFile,
+          'maintenance/incidents',
+        );
+      } catch (error) {
+        console.error('Image upload error:', error);
+        throw new HttpException('Lỗi upload hình ảnh', HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    if (videoFile) {
+      try {
+        videoUrl = await this.supabaseStorageService.uploadFile(
+          videoFile,
+          'maintenance/incidents',
+        );
+      } catch (error) {
+        console.error('Video upload error:', error);
+        throw new HttpException('Lỗi upload video', HttpStatus.BAD_REQUEST);
+      }
+    }
 
     ticket.status = TicketStatus.COMPLETED;
     ticket.result = completeDto.result;
+    ticket.actualCost = completeDto.actualCost;
     ticket.resultNote = completeDto.resultNote;
+    ticket.completedDate = new Date();
+
+    // Store Cloudinary URLs in additional fields
+    if (imageUrl) {
+      ticket.evidenceImage = imageUrl;
+    }
+    if (videoUrl) {
+      ticket.evidenceVideo = videoUrl;
+    }
+
+    await this.ticketRepository.save(ticket);
+
+    // Update asset status based on result
+    if (ticket.assetId) {
+      const completedDate = ticket.completedDate;
+
+      if (completeDto.result === MaintenanceResult.GOOD) {
+        await this.assetRepository.update(ticket.assetId, {
+          status: AssetStatus.ACTIVE,
+          lastMaintenanceDate: completedDate,
+        });
+
+        // Recalculate next maintenance date
+        const asset = await this.assetRepository.findOne({
+          where: { id: ticket.assetId },
+        });
+
+        if (asset && asset.maintenanceIntervalMonths) {
+          const nextMaintenanceDate = new Date(completedDate);
+          nextMaintenanceDate.setMonth(
+            nextMaintenanceDate.getMonth() + asset.maintenanceIntervalMonths,
+          );
+
+          await this.assetRepository.update(ticket.assetId, {
+            nextMaintenanceDate,
+          });
+        }
+      } else if (completeDto.result === MaintenanceResult.NEEDS_REPAIR) {
+        await this.assetRepository.update(ticket.assetId, {
+          status: AssetStatus.BROKEN,
+        });
+      } else if (completeDto.result === MaintenanceResult.MONITORING) {
+        await this.assetRepository.update(ticket.assetId, {
+          status: AssetStatus.ACTIVE,
+          note: `Cần theo dõi: ${completeDto.resultNote || 'Cần theo dõi thêm'}`,
+        });
+      }
+    }
+
+    return this.findOne(id);
+  }
+
+  async completeScheduledMaintenance(
+    id: number,
+    completeDto: CompleteScheduledMaintenanceTicketDto,
+  ) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!ticket) {
+      throw new HttpException(
+        `Ticket với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (ticket.status !== TicketStatus.IN_PROGRESS) {
+      throw new HttpException(
+        'Ticket phải ở trạng thái IN_PROGRESS để hoàn thành',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    ticket.status = TicketStatus.COMPLETED;
+    ticket.result = completeDto.result;
+    ticket.actualCost = completeDto.actualCost;
     ticket.hasIssue = completeDto.hasIssue || false;
     ticket.issueDetail = completeDto.issueDetail;
-    ticket.materialCost = materialCost;
-    ticket.laborCost = laborCost;
-    ticket.totalCost = totalCost;
-    ticket.actualCost = totalCost;
+    ticket.resultNote = completeDto.resultNote;
     ticket.completedDate = new Date();
 
     await this.ticketRepository.save(ticket);
@@ -407,7 +692,7 @@ export class MaintenanceTicketsService {
           lastMaintenanceDate: completedDate,
         });
 
-        // Recalculate next maintenance date using asset's maintenance interval
+        // Recalculate next maintenance date
         const asset = await this.assetRepository.findOne({
           where: { id: ticket.assetId },
         });
@@ -473,83 +758,6 @@ export class MaintenanceTicketsService {
         });
       }
     }
-
-    return this.findOne(id);
-  }
-
-  async update(id: number, updateDto: UpdateMaintenanceTicketDto) {
-    const ticket = await this.ticketRepository.findOne({
-      where: { id, isActive: true },
-      relations: ['block', 'apartment', 'asset'],
-    });
-
-    if (!ticket) {
-      throw new HttpException(
-        `Ticket với ID ${id} không tồn tại`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    // Only allow update for PENDING or ASSIGNED tickets
-    if (
-      ticket.status !== TicketStatus.PENDING &&
-      ticket.status !== TicketStatus.ASSIGNED
-    ) {
-      throw new HttpException(
-        'Chỉ có thể cập nhật ticket ở trạng thái PENDING hoặc ASSIGNED',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // Validate Block if changed
-    if (updateDto.blockId && updateDto.blockId !== ticket.blockId) {
-      const block = await this.blockRepository.findOne({
-        where: { id: updateDto.blockId, isActive: true },
-      });
-
-      if (!block) {
-        throw new HttpException(
-          `Block với ID ${updateDto.blockId} không tồn tại`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-    }
-
-    // Validate Apartment if changed
-    if (updateDto.apartmentId && updateDto.apartmentId !== ticket.apartmentId) {
-      const apartment = await this.apartmentRepository.findOne({
-        where: { id: updateDto.apartmentId, isActive: true },
-      });
-
-      if (!apartment) {
-        throw new HttpException(
-          `Apartment với ID ${updateDto.apartmentId} không tồn tại`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-    }
-
-    // Validate Asset if changed
-    if (updateDto.assetId && updateDto.assetId !== ticket.assetId) {
-      const asset = await this.assetRepository.findOne({
-        where: { id: updateDto.assetId, isActive: true },
-      });
-
-      if (!asset) {
-        throw new HttpException(
-          `Asset với ID ${updateDto.assetId} không tồn tại`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-    }
-
-    // Update ticket fields
-    Object.assign(ticket, {
-      ...updateDto,
-      checklistItems: updateDto.checklistItems || ticket.checklistItems,
-    });
-
-    await this.ticketRepository.save(ticket);
 
     return this.findOne(id);
   }

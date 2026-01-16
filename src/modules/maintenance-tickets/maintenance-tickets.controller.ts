@@ -13,6 +13,7 @@ import {
   ParseIntPipe,
   UseInterceptors,
   ClassSerializerInterceptor,
+  UploadedFiles,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,14 +21,19 @@ import {
   ApiResponse,
   ApiParam,
   ApiBearerAuth,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { MaintenanceTicketsService } from './maintenance-tickets.service';
-import { CreateMaintenanceTicketDto } from './dto/create-maintenance-ticket.dto';
-import { UpdateMaintenanceTicketDto } from './dto/update-maintenance-ticket.dto';
+import { CreateIncidentMaintenanceTicketDto } from './dtos/create-incident-maintenance-ticket.dto';
+import { CreateScheduledMaintenanceTicketDto } from './dtos/create-scheduled-maintenance-ticket.dto';
+import { UpdateIncidentMaintenanceTicketDto } from './dtos/update-incident-maintenance-ticket.dto';
+import { UpdateScheduledMaintenanceTicketDto } from './dtos/update-scheduled-maintenance-ticket.dto';
+import { CompleteIncidentMaintenanceTicketDto } from './dtos/complete-incident-maintenance-ticket.dto';
+import { CompleteScheduledMaintenanceTicketDto } from './dtos/complete-scheduled-maintenance-ticket.dto';
 import { DeleteManyMaintenanceTicketsDto } from './dto/delete-many-maintenance-tickets.dto';
 import { AssignTechnicianDto } from './dto/assign-technician.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
-import { CompleteMaintenanceDto } from './dto/complete-maintenance.dto';
 import { CancelTicketDto } from './dto/cancel-ticket.dto';
 import { QueryMaintenanceTicketDto } from './dto/query-maintenance-ticket.dto';
 import { MaintenanceTicketListItemDto } from './dto/maintenance-ticket-list.dto';
@@ -48,21 +54,48 @@ export class MaintenanceTicketsController {
     private readonly maintenanceTicketsService: MaintenanceTicketsService,
   ) {}
 
-  @Post()
+  @Post('incident')
   @HttpCode(HttpStatus.CREATED)
   @Roles(UserRole.ADMIN, UserRole.RESIDENT)
-  @ApiOperation({ summary: 'Tạo phiếu bảo trì/sự cố mới' })
+  @ApiOperation({ summary: 'Tạo phiếu sự cố (INCIDENT) từ phản ánh cư dân' })
   @ApiResponse({
     status: HttpStatus.CREATED,
-    description: 'Ticket được tạo thành công',
+    description: 'Phiếu sự cố được tạo thành công',
     type: MaintenanceTicketDetailDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Block, Asset hoặc Apartment không tồn tại',
+    description: 'Asset hoặc Block không tồn tại',
   })
-  async create(@Body() createDto: CreateMaintenanceTicketDto) {
-    return this.maintenanceTicketsService.create(createDto);
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dữ liệu đầu vào không hợp lệ',
+  })
+  async createIncident(@Body() createDto: CreateIncidentMaintenanceTicketDto) {
+    return this.maintenanceTicketsService.createIncident(createDto);
+  }
+
+  @Post('scheduled')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Tạo phiếu bảo trì định kỳ (MAINTENANCE)' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Phiếu bảo trì định kỳ được tạo thành công',
+    type: MaintenanceTicketDetailDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Asset hoặc Block không tồn tại',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Dữ liệu đầu vào không hợp lệ',
+  })
+  async createScheduledMaintenance(
+    @Body() createDto: CreateScheduledMaintenanceTicketDto,
+  ) {
+    return this.maintenanceTicketsService.createScheduledMaintenance(createDto);
   }
 
   @Get()
@@ -201,10 +234,58 @@ export class MaintenanceTicketsController {
     return this.maintenanceTicketsService.updateProgress(id, updateDto);
   }
 
-  @Post(':id/complete')
+  @Post('incident/:id/complete')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: '[ADMIN] Hoàn tất nghiệm thu bảo trì' })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'image', maxCount: 1 },
+      { name: 'video', maxCount: 1 },
+    ]),
+  )
+  @Roles(UserRole.ADMIN, UserRole.TECHNICIAN)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '[ADMIN, TECHNICIAN] Hoàn tất sự cố' })
+  @ApiParam({
+    name: 'id',
+    description: 'Maintenance Ticket ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Sự cố đã hoàn tất',
+    type: MaintenanceTicketDetailDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Ticket không tồn tại',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Ticket phải ở trạng thái IN_PROGRESS',
+  })
+  async completeIncident(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFiles()
+    files: {
+      image?: Express.Multer.File[];
+      video?: Express.Multer.File[];
+    },
+    @Body() completeDto: CompleteIncidentMaintenanceTicketDto,
+  ) {
+    const imageFile = files?.image?.[0];
+    const videoFile = files?.video?.[0];
+    return this.maintenanceTicketsService.completeIncident(
+      id,
+      completeDto,
+      imageFile,
+      videoFile,
+    );
+  }
+
+  @Post('scheduled/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.ADMIN, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: '[ADMIN, TECHNICIAN] Hoàn tất bảo trì định kỳ' })
   @ApiParam({
     name: 'id',
     description: 'Maintenance Ticket ID',
@@ -223,11 +304,14 @@ export class MaintenanceTicketsController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Ticket phải ở trạng thái IN_PROGRESS',
   })
-  async complete(
+  async completeScheduledMaintenance(
     @Param('id', ParseIntPipe) id: number,
-    @Body() completeDto: CompleteMaintenanceDto,
+    @Body() completeDto: CompleteScheduledMaintenanceTicketDto,
   ) {
-    return this.maintenanceTicketsService.complete(id, completeDto);
+    return this.maintenanceTicketsService.completeScheduledMaintenance(
+      id,
+      completeDto,
+    );
   }
 
   @Post(':id/cancel')
@@ -259,10 +343,12 @@ export class MaintenanceTicketsController {
     return this.maintenanceTicketsService.cancel(id, cancelDto);
   }
 
-  @Patch(':id')
+  @Patch('incident/:id')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: '[ADMIN] Cập nhật thông tin phiếu bảo trì' })
+  @ApiOperation({
+    summary: '[ADMIN] Cập nhật thông tin phiếu bảo trì sự cố (INCIDENT)',
+  })
   @ApiParam({
     name: 'id',
     description: 'Maintenance Ticket ID',
@@ -282,11 +368,46 @@ export class MaintenanceTicketsController {
     description:
       'Chỉ có thể cập nhật ticket ở trạng thái PENDING hoặc ASSIGNED',
   })
-  async update(
+  async updateIncident(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateDto: UpdateMaintenanceTicketDto,
+    @Body() updateDto: UpdateIncidentMaintenanceTicketDto,
   ) {
-    return this.maintenanceTicketsService.update(id, updateDto);
+    return this.maintenanceTicketsService.updateIncident(id, updateDto);
+  }
+
+  @Patch('scheduled/:id')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: '[ADMIN] Cập nhật phiếu bảo trì định kỳ (MAINTENANCE)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Maintenance Ticket ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Cập nhật thành công',
+    type: MaintenanceTicketDetailDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Ticket hoặc Asset không tồn tại',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Chỉ có thể cập nhật ticket ở trạng thái PENDING hoặc ASSIGNED',
+  })
+  async updateScheduledMaintenance(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateScheduledMaintenanceTicketDto,
+  ) {
+    return this.maintenanceTicketsService.updateScheduledMaintenance(
+      id,
+      updateDto,
+    );
   }
 
   @Delete(':id')

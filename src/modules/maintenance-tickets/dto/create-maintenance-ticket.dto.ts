@@ -82,15 +82,6 @@ export class CreateMaintenanceTicketDto {
   @IsNotEmpty()
   floor: number;
 
-  // Tùy chọn: Link tới đối tượng cụ thể
-  @ApiPropertyOptional({
-    example: null,
-    description: 'Apartment ID if the issue is in a specific apartment',
-  })
-  @IsInt()
-  @IsOptional()
-  apartmentId?: number;
-
   @ApiPropertyOptional({
     example: 105,
     description: 'Asset ID if the issue is with a specific public asset',

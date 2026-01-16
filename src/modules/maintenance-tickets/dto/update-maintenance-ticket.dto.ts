@@ -54,14 +54,6 @@ export class UpdateMaintenanceTicketDto {
   floor?: number;
 
   @ApiPropertyOptional({
-    example: 101,
-    description: 'Updated apartment ID',
-  })
-  @IsInt()
-  @IsOptional()
-  apartmentId?: number;
-
-  @ApiPropertyOptional({
     example: 105,
     description: 'Updated asset ID',
   })
