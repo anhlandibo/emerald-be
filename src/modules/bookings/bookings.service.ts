@@ -17,6 +17,7 @@ import {
   BookingStatusLabels,
 } from './enums/booking-status.enum';
 import { EntityManager } from 'typeorm';
+import { Resident } from '../residents/entities/resident.entity';
 
 @Injectable()
 export class BookingsService {
@@ -27,6 +28,8 @@ export class BookingsService {
     private readonly paymentRepository: Repository<BookingPayment>,
     @InjectRepository(SlotAvailability)
     private readonly slotRepository: Repository<SlotAvailability>,
+    @InjectRepository(Resident)
+    private readonly residentRepository: Repository<Resident>,
   ) {}
 
   async createBooking(
@@ -94,7 +97,9 @@ export class BookingsService {
   async payBooking(
     id: number,
     payBookingDto: PayBookingDto,
+    accountId: number,
   ): Promise<BookingResponseDto> {
+    const resident = await this.getResidentByAccount(accountId);
     const booking = await this.bookingRepository.findOne({
       where: { id },
     });
@@ -103,6 +108,13 @@ export class BookingsService {
       throw new HttpException(
         `Booking với ID ${id} không tồn tại`,
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (booking.residentId !== resident.id) {
+      throw new HttpException(
+        'Bạn không có quyền thanh toán cho booking này',
+        HttpStatus.FORBIDDEN,
       );
     }
 
@@ -119,7 +131,10 @@ export class BookingsService {
 
       await this.releaseSlot(booking);
 
-      throw new HttpException('Booking đã hết hạn', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Booking đã hết hạn thanh toán',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const payment = this.paymentRepository.create({
@@ -200,6 +215,19 @@ export class BookingsService {
     const sequence = String(count + 1).padStart(3, '0');
 
     return `BKG-${dateStr}-${sequence}`;
+  }
+
+  private async getResidentByAccount(accountId: number) {
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
+    });
+    if (!resident) {
+      throw new HttpException(
+        'Không tìm thấy thông tin cư dân',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return resident;
   }
 
   transformToResponse(booking: Booking): BookingResponseDto {

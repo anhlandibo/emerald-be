@@ -26,8 +26,8 @@ class SlotItem {
 
 export class ReserveSlotDto {
   @ApiProperty({ example: '2024-01-20', description: 'Ngày đặt (YYYY-MM-DD)' })
-  @IsDateString({}, { message: 'Booking date must be a valid date' })
-  @IsNotEmpty({ message: 'Booking date cannot be empty' })
+  @IsDateString({}, { message: 'Ngày đặt không đúng định dạng YYYY-MM-DD' })
+  @IsNotEmpty({ message: 'Vui lòng chọn ngày đặt' })
   bookingDate: string;
 
   @ApiProperty({
@@ -37,6 +37,6 @@ export class ReserveSlotDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SlotItem)
-  @IsNotEmpty({ message: 'Slots cannot be empty' })
+  @IsNotEmpty({ message: 'Danh sách slot không được để trống' })
   slots: SlotItem[];
 }

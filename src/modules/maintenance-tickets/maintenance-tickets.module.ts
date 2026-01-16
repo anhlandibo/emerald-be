@@ -8,6 +8,7 @@ import { Block } from '../blocks/entities/block.entity';
 import { Apartment } from '../apartments/entities/apartment.entity';
 import { Technician } from '../technicians/entities/technician.entity';
 import { AssetsModule } from '../assets/assets.module';
+import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AssetsModule } from '../assets/assets.module';
       Technician,
     ]),
     AssetsModule,
+    SupabaseStorageModule,
   ],
   controllers: [MaintenanceTicketsController],
   providers: [MaintenanceTicketsService],

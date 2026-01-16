@@ -15,9 +15,9 @@ class GeneralInfoDto {
   @Expose()
   floor: number;
 
-  @ApiProperty({ example: '300m2' })
+  @ApiProperty({ example: 300, description: 'Diện tích căn hộ (m2)' })
   @Expose()
-  area: string;
+  area: number;
 
   @ApiProperty({ example: 'STUDIO', enum: ApartmentType })
   @Expose()
@@ -59,9 +59,17 @@ class ResidentDetailDto {
   @Expose()
   phone: string;
 
-  @ApiProperty({ example: 'Vợ/chồng' })
+  @ApiProperty({
+    example: [
+      { value: 'OWNER', label: 'Chủ nhân' },
+      { value: 'SPOUSE', label: 'Vợ/Chồng' },
+      { value: 'CHILD', label: 'Con' },
+      { value: 'PARTNER', label: 'Ở ghép' },
+    ],
+    description: 'Mối quan hệ với chủ nhân căn hộ',
+  })
   @Expose()
-  relationship: string;
+  relationship: { value: string; label: string }[];
 }
 
 @Exclude()
