@@ -119,9 +119,19 @@ export class IssuesService {
       );
     }
 
+    // prioritize urgent issues that are not rejected or resolved
+    queryBuilder.orderBy(
+      'CASE WHEN issue.isUrgent = true AND issue.status NOT IN (:rejectedStatus, :resolvedStatus) THEN 0 ELSE 1 END',
+      'ASC',
+    );
+    queryBuilder.setParameters({
+      rejectedStatus: IssueStatus.REJECTED,
+      resolvedStatus: IssueStatus.RESOLVED,
+    });
+
     const orderBy = sortBy || 'createdAt';
     const order = sortOrder || 'DESC';
-    queryBuilder.orderBy(`issue.${orderBy}`, order);
+    queryBuilder.addOrderBy(`issue.${orderBy}`, order);
 
     const issues = await queryBuilder.getMany();
 
@@ -131,7 +141,7 @@ export class IssuesService {
   async findOne(id: number): Promise<IssueResponseDto> {
     const issue = await this.issueRepository.findOne({
       where: { id, isActive: true },
-      relations: ['reporter', 'reporter.account', 'block'],
+      relations: ['reporter', 'reporter.account', 'block', 'maintenanceTicket'],
     });
 
     if (!issue) {
@@ -326,6 +336,7 @@ export class IssuesService {
       isUrgent: issue.isUrgent,
       rating: issue.rating,
       feedback: issue.feedback,
+      rejectionReason: issue.rejectionReason || null,
       reporter: issue.reporter
         ? {
             id: issue.reporter.id,
@@ -334,7 +345,12 @@ export class IssuesService {
           }
         : null,
       estimatedCompletionDate: issue.estimatedCompletionDate,
-      // maintenanceTicketId: issue.maintenanceTicketId,
+      maintenanceTicket: issue.maintenanceTicket
+        ? {
+            id: issue.maintenanceTicket.id,
+            title: issue.maintenanceTicket.title,
+          }
+        : null,
       assignedToTechnicianDepartment: issue.assignedToTechnicianDepartment,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,

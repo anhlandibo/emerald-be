@@ -11,6 +11,7 @@ import { IssueType } from '../enums/issue-type.enum';
 import { IssueStatus } from '../enums/issue-status.enum';
 import { Resident } from '../../residents/entities/resident.entity';
 import { Block } from '../../blocks/entities/block.entity';
+import { MaintenanceTicket } from '../../maintenance-tickets/entities/maintenance-ticket.entity';
 
 @Entity('issues')
 export class Issue {
@@ -100,4 +101,8 @@ export class Issue {
   @ManyToOne(() => Block, { eager: false })
   @JoinColumn({ name: 'block_id' })
   block: Block;
+
+  @ManyToOne(() => MaintenanceTicket, { eager: false })
+  @JoinColumn({ name: 'maintenance_ticket_id' })
+  maintenanceTicket: MaintenanceTicket;
 }
