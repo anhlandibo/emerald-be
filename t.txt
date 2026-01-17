@@ -1,5 +1,7 @@
 Hướng dẫn test VNPAY: https://sandbox.vnpayment.vn/apis/vnpay-demo/
 
 MOMO: Tải app MoMo UAT, đăng ký, xác thực, ...
+Link tải: https://developers.momo.vn/v3/download/
+Hướng dẫn test: https://developers.momo.vn/v3/vi/docs/payment/onboarding/test-instructions/
 
-BACKEND_URL trong .env mỗi lần start app dùng ngrok để tạo địa chỉ bên ngoài nhé.
+Mỗi lần start app, mở 1 terminal khác và chạy lệnh: npm run tunnel
