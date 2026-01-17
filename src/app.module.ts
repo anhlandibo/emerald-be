@@ -24,6 +24,7 @@ import { MaintenanceTicketsModule } from './modules/maintenance-tickets/maintena
 import { VotingsModule } from './modules/votings/votings.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AiModule } from './modules/ai/ai.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -55,6 +56,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ReportsModule,
     MaintenanceTicketsModule,
     AiModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
