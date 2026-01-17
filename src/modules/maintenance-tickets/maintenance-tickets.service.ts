@@ -28,6 +28,8 @@ import { plainToInstance } from 'class-transformer';
 import { MaintenanceTicketListItemDto } from './dto/maintenance-ticket-list.dto';
 import { MaintenanceTicketDetailDto } from './dto/maintenance-ticket-detail.dto';
 import { TicketHistoryItemDto } from './dto/ticket-history-item.dto';
+import { SystemNotificationsService } from 'src/modules/system-notifications/system-notifications.service';
+import { SystemNotificationType } from 'src/modules/system-notifications/entities/system-notification.entity';
 
 @Injectable()
 export class MaintenanceTicketsService {
@@ -42,6 +44,7 @@ export class MaintenanceTicketsService {
     private readonly technicianRepository: Repository<Technician>,
     private readonly assetsService: AssetsService,
     private readonly supabaseStorageService: SupabaseStorageService,
+    private readonly systemNotificationsService: SystemNotificationsService,
   ) {}
 
   async createIncident(createDto: CreateIncidentMaintenanceTicketDto) {
@@ -87,6 +90,15 @@ export class MaintenanceTicketsService {
     });
 
     const savedTicket = await this.ticketRepository.save(ticket);
+    await this.systemNotificationsService.sendSystemNotification({
+      title: 'Ticket bảo trì mới được tạo',
+      content:
+        'Ticket bảo trì "' +
+        savedTicket.title +
+        '" đã được tạo. Vui lòng kiểm tra và xử lý.',
+      type: SystemNotificationType.INFO, // INFO | SUCCESS | WARNING | ERROR | SYSTEM
+      metadata: { ticketId: savedTicket.id },
+    });
     return this.findOne(savedTicket.id);
   }
 

@@ -9,6 +9,7 @@ import { Apartment } from '../apartments/entities/apartment.entity';
 import { Technician } from '../technicians/entities/technician.entity';
 import { AssetsModule } from '../assets/assets.module';
 import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.module';
+import { SystemNotificationsModule } from 'src/modules/system-notifications/system-notifications.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.modu
     ]),
     AssetsModule,
     SupabaseStorageModule,
+    SystemNotificationsModule,
   ],
   controllers: [MaintenanceTicketsController],
   providers: [MaintenanceTicketsService],
