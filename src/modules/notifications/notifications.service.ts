@@ -202,10 +202,7 @@ export class NotificationsService {
       queryBuilder.andWhere('notification.isUrgent = :isUrgent', { isUrgent });
     }
 
-    // Order by isUrgent DESC, then by created date DESC
-    queryBuilder
-      .orderBy('notification.isUrgent', 'DESC')
-      .addOrderBy('notification.createdAt', 'DESC');
+    queryBuilder.orderBy('notification.createdAt', 'DESC');
 
     const notifications = await queryBuilder.getMany();
 

@@ -7,6 +7,7 @@ import { Asset } from '../assets/entities/asset.entity';
 import { Block } from '../blocks/entities/block.entity';
 import { Apartment } from '../apartments/entities/apartment.entity';
 import { Technician } from '../technicians/entities/technician.entity';
+import { Issue } from '../issues/entities/issue.entity';
 import { AssetsModule } from '../assets/assets.module';
 import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.module';
 
@@ -18,6 +19,7 @@ import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.modu
       Block,
       Apartment,
       Technician,
+      Issue,
     ]),
     AssetsModule,
     SupabaseStorageModule,
