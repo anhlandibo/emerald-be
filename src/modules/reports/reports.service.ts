@@ -20,7 +20,7 @@ import {
   ServiceBookingChartDto,
   AssetStatusStatisticsDto,
 } from './dto/dashboard-statistics.dto';
-import { QueryReportDto, DateRangeType } from './dto/query-report.dto';
+import { QueryReportDto } from './dto/query-report.dto';
 
 @Injectable()
 export class ReportsService {
@@ -38,73 +38,66 @@ export class ReportsService {
   ) {}
 
   /**
-   * Get date range based on rangeType and custom dates
+   * Parse and validate date range from query
    */
-  private getDateRange(queryDto: QueryReportDto): {
+  private parseDateRange(queryDto: QueryReportDto): {
     startDate: Date;
     endDate: Date;
   } {
-    const now = new Date();
-    let startDate: Date;
-    let endDate = new Date(now);
-    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date(queryDto.startDate);
+    const endDate = new Date(queryDto.endDate);
 
-    if (queryDto.rangeType === DateRangeType.DAY) {
-      startDate = new Date(now);
-      startDate.setHours(0, 0, 0, 0);
-    } else if (queryDto.rangeType === DateRangeType.MONTH) {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (queryDto.rangeType === DateRangeType.YEAR) {
-      startDate = new Date(now.getFullYear(), 0, 1);
-    } else if (queryDto.rangeType === DateRangeType.CUSTOM) {
-      if (!queryDto.startDate || !queryDto.endDate) {
-        throw new HttpException(
-          'startDate và endDate là bắt buộc với rangeType là CUSTOM',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      startDate = new Date(queryDto.startDate);
-      endDate = new Date(queryDto.endDate);
-      endDate.setHours(23, 59, 59, 999);
-    } else {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Validate date range
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new HttpException(
+        'Ngày bắt đầu và ngày kết thúc phải hợp lệ (ISO format: YYYY-MM-DD)',
+        HttpStatus.BAD_REQUEST,
+      );
     }
+
+    if (startDate > endDate) {
+      throw new HttpException(
+        'Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Set time to full day range
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
 
     return { startDate, endDate };
   }
 
   /**
-   * Get previous period date range
+   * Calculate previous period date range (same duration as current)
+   * Calculates dates for comparison analytics
    */
-  private getPreviousPeriodDateRange(
-    rangeType: DateRangeType,
+  private calculatePreviousPeriod(
     startDate: Date,
-  ): {
-    startDate: Date;
-    endDate: Date;
-  } {
-    let prevStart = new Date(startDate);
-    let prevEnd = new Date(startDate);
+    endDate: Date,
+  ): { prevStartDate: Date; prevEndDate: Date } {
+    // Calculate number of days in current period
+    const currentStart = new Date(startDate);
+    currentStart.setHours(0, 0, 0, 0);
 
-    if (rangeType === DateRangeType.DAY) {
-      prevStart.setDate(prevStart.getDate() - 1);
-      prevEnd.setDate(prevEnd.getDate() - 1);
-      prevEnd.setHours(23, 59, 59, 999);
-    } else if (rangeType === DateRangeType.MONTH) {
-      prevStart = new Date(
-        startDate.getFullYear(),
-        startDate.getMonth() - 1,
-        1,
-      );
-      prevEnd = new Date(startDate.getFullYear(), startDate.getMonth(), 0);
-      prevEnd.setHours(23, 59, 59, 999);
-    } else if (rangeType === DateRangeType.YEAR) {
-      prevStart = new Date(startDate.getFullYear() - 1, 0, 1);
-      prevEnd = new Date(startDate.getFullYear(), 0, 0);
-      prevEnd.setHours(23, 59, 59, 999);
-    }
+    const currentEnd = new Date(endDate);
+    currentEnd.setHours(0, 0, 0, 0);
 
-    return { startDate: prevStart, endDate: prevEnd };
+    const durationDays = Math.ceil(
+      (currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    // Previous period: go back by duration days
+    const prevEndDate = new Date(currentStart);
+    prevEndDate.setDate(prevEndDate.getDate() - 1); // Last day before current period
+    prevEndDate.setHours(23, 59, 59, 999);
+
+    const prevStartDate = new Date(prevEndDate);
+    prevStartDate.setDate(prevStartDate.getDate() - durationDays + 1);
+    prevStartDate.setHours(0, 0, 0, 0);
+
+    return { prevStartDate, prevEndDate };
   }
 
   /**
@@ -157,22 +150,33 @@ export class ReportsService {
   }
 
   /**
-   * Get debt statistics
+   * Get debt statistics - unpaid invoices in current period
    */
-  async getDebtStatistics(): Promise<DebtStatisticsDto> {
-    // Total unpaid amount
+  async getDebtStatistics(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DebtStatisticsDto> {
+    // Total unpaid amount in date range
     const debtResult = await this.invoiceRepository
       .createQueryBuilder('invoice')
-      .where('invoice.status = :status', { status: InvoiceStatus.UNPAID })
+      .where('invoice.createdAt BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      })
+      .andWhere('invoice.status = :status', { status: InvoiceStatus.UNPAID })
       .select('SUM(CAST(invoice.totalAmount AS DECIMAL))', 'total')
       .getRawOne();
 
     const totalDebt = debtResult?.total ? parseFloat(debtResult.total) : 0;
 
-    // Count apartments with unpaid invoices
+    // Count apartments with unpaid invoices in date range
     const apartmentsOwing = await this.invoiceRepository
       .createQueryBuilder('invoice')
-      .where('invoice.status = :status', { status: InvoiceStatus.UNPAID })
+      .where('invoice.createdAt BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      })
+      .andWhere('invoice.status = :status', { status: InvoiceStatus.UNPAID })
       .select('COUNT(DISTINCT invoice.apartmentId)', 'count')
       .getRawOne();
 
@@ -266,9 +270,9 @@ export class ReportsService {
       chartData.set(dateStr, existing);
     });
 
-    return Array.from(chartData.values()).sort(
-      (a, b) => new Date(a.label).getTime() - new Date(b.label).getTime(),
-    );
+    return Array.from(chartData.values())
+      .sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime())
+      .slice(0, 4); // Limit to 4 days for consistency
   }
 
   /**
@@ -278,26 +282,32 @@ export class ReportsService {
     startDate: Date,
     endDate: Date,
   ): Promise<ServiceBookingChartDto[]> {
-    const serviceBookings = await this.bookingRepository
-      .createQueryBuilder('booking')
-      .leftJoinAndSelect('booking.service', 'service')
-      .where('booking.createdAt BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      })
-      .andWhere('booking.status IN (:...statuses)', {
-        statuses: [BookingStatus.COMPLETED, BookingStatus.PAID],
-      })
-      .select('service.name', 'serviceName')
-      .addSelect('COUNT(booking.id)', 'count')
-      .groupBy('service.id')
-      .addGroupBy('service.name')
+    // Get top 4 services by booking count (including those with 0 bookings)
+    const serviceBookings = await this.serviceRepository
+      .createQueryBuilder('service')
+      .select('service.id', 'id')
+      .addSelect('service.name', 'serviceName')
+      .addSelect((qb) => {
+        return qb
+          .select('COUNT(booking.id)', 'count')
+          .from(Booking, 'booking')
+          .where('booking.serviceId = service.id')
+          .andWhere('booking.createdAt BETWEEN :startDate AND :endDate', {
+            startDate,
+            endDate,
+          })
+          .andWhere('booking.status IN (:...statuses)', {
+            statuses: [BookingStatus.COMPLETED, BookingStatus.PAID],
+          });
+      }, 'count')
       .orderBy('count', 'DESC')
+      .addOrderBy('service.name', 'ASC')
+      .limit(4)
       .getRawMany();
 
     return serviceBookings.map((row) => ({
       serviceName: row.serviceName,
-      bookingCount: parseInt(row.count, 10),
+      bookingCount: parseInt(row.count || 0, 10),
     }));
   }
 
@@ -331,12 +341,11 @@ export class ReportsService {
   async getDashboardStatistics(
     queryDto: QueryReportDto,
   ): Promise<DashboardStatisticsDto> {
-    const { startDate, endDate } = this.getDateRange(queryDto);
-    const { startDate: prevStartDate, endDate: prevEndDate } =
-      this.getPreviousPeriodDateRange(
-        queryDto.rangeType || DateRangeType.MONTH,
-        startDate,
-      );
+    const { startDate, endDate } = this.parseDateRange(queryDto);
+    const { prevStartDate, prevEndDate } = this.calculatePreviousPeriod(
+      startDate,
+      endDate,
+    );
 
     const [
       revenue,
@@ -347,7 +356,7 @@ export class ReportsService {
       assetStatus,
     ] = await Promise.all([
       this.getRevenueStatistics(startDate, endDate, prevStartDate, prevEndDate),
-      this.getDebtStatistics(),
+      this.getDebtStatistics(startDate, endDate),
       this.getMaintenanceStatistics(startDate, endDate),
       this.getRevenueExpenseChart(startDate, endDate),
       this.getServiceBookingChart(startDate, endDate),

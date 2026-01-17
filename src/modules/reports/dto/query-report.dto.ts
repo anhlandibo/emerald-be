@@ -1,41 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsDateString } from 'class-validator';
-
-export enum DateRangeType {
-  DAY = 'day',
-  MONTH = 'month',
-  YEAR = 'year',
-  CUSTOM = 'custom',
-}
+import { IsDateString } from 'class-validator';
 
 export class QueryReportDto {
   @ApiProperty({
-    enum: DateRangeType,
-    default: DateRangeType.MONTH,
-    description: 'Loại khoảng thời gian',
-    example: DateRangeType.MONTH,
+    type: String,
+    description: 'Ngày bắt đầu (ISO format: YYYY-MM-DD)',
+    example: '2026-01-01',
   })
-  @IsEnum(DateRangeType)
-  @IsOptional()
-  rangeType?: DateRangeType = DateRangeType.MONTH;
+  @IsDateString()
+  startDate: string;
 
   @ApiProperty({
     type: String,
-    description: 'Ngày bắt đầu (ISO format)',
-    required: false,
-    example: '2025-01-01',
+    description: 'Ngày kết thúc (ISO format: YYYY-MM-DD)',
+    example: '2026-01-31',
   })
   @IsDateString()
-  @IsOptional()
-  startDate?: string;
-
-  @ApiProperty({
-    type: String,
-    description: 'Ngày kết thúc (ISO format)',
-    required: false,
-    example: '2025-01-31',
-  })
-  @IsDateString()
-  @IsOptional()
-  endDate?: string;
+  endDate: string;
 }
