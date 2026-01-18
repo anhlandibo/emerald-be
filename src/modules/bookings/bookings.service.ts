@@ -177,7 +177,10 @@ export class BookingsService {
   }
 
   private async releaseSlot(booking: Booking): Promise<void> {
-    const dateStr = booking.bookingDate.toISOString().split('T')[0];
+    const dateStr =
+      booking.bookingDate instanceof Date
+        ? booking.bookingDate.toISOString().split('T')[0]
+        : booking.bookingDate;
 
     for (const slotItem of booking.timestamps) {
       const startDateTime = new Date(`${dateStr}T${slotItem.startTime}:00`);
