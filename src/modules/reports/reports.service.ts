@@ -325,18 +325,33 @@ export class ReportsService {
   /**
    * Get asset status statistics
    */
-  async getAssetStatusStatistics(): Promise<AssetStatusStatisticsDto> {
-    // Count assets by status directly from Asset entity
+  async getAssetStatusStatistics(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<AssetStatusStatisticsDto> {
+    // Count assets by status within date range
     const brokenAssets = await this.assetRepository.count({
-      where: { status: AssetStatus.BROKEN, isActive: true },
+      where: {
+        status: AssetStatus.BROKEN,
+        isActive: true,
+        createdAt: Between(startDate, endDate),
+      },
     });
 
     const maintenanceAssets = await this.assetRepository.count({
-      where: { status: AssetStatus.MAINTENANCE, isActive: true },
+      where: {
+        status: AssetStatus.MAINTENANCE,
+        isActive: true,
+        createdAt: Between(startDate, endDate),
+      },
     });
 
     const workingAssets = await this.assetRepository.count({
-      where: { status: AssetStatus.ACTIVE, isActive: true },
+      where: {
+        status: AssetStatus.ACTIVE,
+        isActive: true,
+        createdAt: Between(startDate, endDate),
+      },
     });
 
     return {
@@ -371,7 +386,7 @@ export class ReportsService {
       this.getMaintenanceStatistics(startDate, endDate),
       this.getRevenueExpenseChart(startDate, endDate),
       this.getServiceBookingChart(startDate, endDate),
-      this.getAssetStatusStatistics(),
+      this.getAssetStatusStatistics(startDate, endDate),
     ]);
 
     return {
