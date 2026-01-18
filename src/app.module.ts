@@ -25,6 +25,7 @@ import { VotingsModule } from './modules/votings/votings.module';
 import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SocketsModule } from './modules/sockets/sockets.module';
+import { SystemNotificationsModule } from './modules/system-notifications/system-notifications.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { SocketsModule } from './modules/sockets/sockets.module';
     VotingsModule,
     MaintenanceTicketsModule,
     SocketsModule,
+    SystemNotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

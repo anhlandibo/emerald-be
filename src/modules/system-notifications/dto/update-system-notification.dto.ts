@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsNotEmpty,
-  IsString,
   IsEnum,
   IsOptional,
+  IsString,
   IsArray,
   IsInt,
   IsBoolean,
@@ -14,38 +13,40 @@ import {
   SystemNotificationPriority,
 } from '../entities/system-notification.entity';
 
-export class SendSystemNotificationDto {
+export class UpdateSystemNotificationDto {
   @ApiProperty({
-    example: 'Thông báo bảo trì hệ thống',
+    example: 'Thông báo bảo trì hệ thống (Updated)',
     description: 'System notification title',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  @IsOptional()
+  title?: string;
 
   @ApiProperty({
-    example: 'Hệ thống sẽ bảo trì vào lúc 2h sáng ngày mai',
+    example: 'Nội dung đã được cập nhật',
     description: 'System notification content',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  content: string;
+  @IsOptional()
+  content?: string;
 
   @ApiProperty({
     example: SystemNotificationType.INFO,
     enum: SystemNotificationType,
     description: 'System notification type',
-    default: SystemNotificationType.INFO,
+    required: false,
   })
   @IsEnum(SystemNotificationType)
   @IsOptional()
   type?: SystemNotificationType;
 
   @ApiProperty({
-    example: SystemNotificationPriority.NORMAL,
+    example: SystemNotificationPriority.HIGH,
     enum: SystemNotificationPriority,
     description: 'System notification priority',
-    default: SystemNotificationPriority.NORMAL,
+    required: false,
   })
   @IsEnum(SystemNotificationPriority)
   @IsOptional()
@@ -53,8 +54,7 @@ export class SendSystemNotificationDto {
 
   @ApiProperty({
     example: [1, 2, 3],
-    description:
-      'User IDs to send notification to (empty or null = broadcast to all online users)',
+    description: 'User IDs to send notification to',
     required: false,
   })
   @IsArray()
@@ -63,8 +63,8 @@ export class SendSystemNotificationDto {
   targetUserIds?: number[];
 
   @ApiProperty({
-    example: { invoiceId: 12345, amount: 5000000 },
-    description: 'Additional metadata for the notification',
+    example: { key: 'value' },
+    description: 'Additional metadata',
     required: false,
   })
   @IsOptional()
@@ -89,10 +89,9 @@ export class SendSystemNotificationDto {
   actionText?: string;
 
   @ApiProperty({
-    example: false,
-    description: 'Keep notification until user dismisses it manually',
+    example: true,
+    description: 'Keep notification until user dismisses it',
     required: false,
-    default: false,
   })
   @IsBoolean()
   @IsOptional()
@@ -100,7 +99,7 @@ export class SendSystemNotificationDto {
 
   @ApiProperty({
     example: '2026-01-20T10:00:00Z',
-    description: 'Schedule notification for later (ISO 8601 format)',
+    description: 'Schedule notification for later',
     required: false,
   })
   @IsDateString()
@@ -109,7 +108,7 @@ export class SendSystemNotificationDto {
 
   @ApiProperty({
     example: '2026-01-25T10:00:00Z',
-    description: 'Notification expiration time (ISO 8601 format)',
+    description: 'Notification expiration time',
     required: false,
   })
   @IsDateString()

@@ -90,15 +90,18 @@ export class MaintenanceTicketsService {
     });
 
     const savedTicket = await this.ticketRepository.save(ticket);
-    await this.systemNotificationsService.sendSystemNotification({
-      title: 'Ticket bảo trì mới được tạo',
-      content:
-        'Ticket bảo trì "' +
-        savedTicket.title +
-        '" đã được tạo. Vui lòng kiểm tra và xử lý.',
-      type: SystemNotificationType.INFO, // INFO | SUCCESS | WARNING | ERROR | SYSTEM
-      metadata: { ticketId: savedTicket.id },
-    });
+    await this.systemNotificationsService.sendSystemNotification(
+      {
+        title: 'Ticket bảo trì mới được tạo',
+        content:
+          'Ticket bảo trì "' +
+          savedTicket.title +
+          '" đã được tạo. Vui lòng kiểm tra và xử lý.',
+        type: SystemNotificationType.INFO, // INFO | SUCCESS | WARNING | ERROR | SYSTEM
+        metadata: { ticketId: savedTicket.id },
+      },
+      1, // System user ID
+    );
     return this.findOne(savedTicket.id);
   }
 
