@@ -464,6 +464,15 @@ export class NotificationsService {
 
     queryBuilder.andWhere(
       new Brackets((qb) => {
+        qb.where('notification.publishedAt IS NULL').orWhere(
+          'notification.publishedAt <= :now',
+          { now: new Date() },
+        );
+      }),
+    );
+
+    queryBuilder.andWhere(
+      new Brackets((qb) => {
         qb.where('notification.targetScope = :all', { all: ScopeType.ALL });
 
         if (myBlockIds.length > 0) {
@@ -529,6 +538,7 @@ export class NotificationsService {
           })) || [],
         channels: n.channels || [],
         is_read: userStatus ? userStatus.isRead : false,
+        published_at: n.publishedAt,
       };
     });
   }
