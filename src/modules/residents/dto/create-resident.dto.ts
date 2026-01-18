@@ -69,26 +69,29 @@ export class CreateResidentDto {
   @ApiProperty({
     example: 'Hồ Chí Minh',
     description: 'Province/City',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  province: string;
+  province?: string;
 
   @ApiProperty({
     example: 'Quận 1',
     description: 'District',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   district: string;
 
   @ApiProperty({
     example: 'Phường Bến Nghé',
     description: 'Ward',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  ward: string;
+  ward?: string;
 
   @ApiProperty({
     example: '123 Đường Nguyễn Huệ',

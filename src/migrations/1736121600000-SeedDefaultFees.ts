@@ -48,34 +48,6 @@ export class SeedDefaultFees1736121600000 implements MigrationInterface {
       INSERT INTO fee_tiers (fee_type_id, name, from_value, to_value, unit_price) VALUES
       (${managementId}, 'Giá chuẩn', 0, NULL, 12000)
     `);
-
-    // Seed Phí giữ xe máy (fixed monthly)
-    await queryRunner.query(`
-      INSERT INTO fees (name, unit, type, description) 
-      VALUES 
-      ('Phí giữ xe máy', 'xe', 'FIXED_MONTH', 'Phí giữ xe máy hàng tháng'),
-      ('Phí giữ xe ô tô', 'xe', 'FIXED_MONTH', 'Phí giữ xe ô tô hàng tháng'),
-      ('Phí xe đạp', 'xe', 'FIXED_MONTH', 'Phí giữ xe đạp hàng tháng')
-    `);
-
-    // Get IDs for parking fees
-    const motorbikeResult = await queryRunner.query(`
-      SELECT id FROM fees WHERE name = 'Phí giữ xe máy' ORDER BY id DESC LIMIT 1
-    `);
-    const carResult = await queryRunner.query(`
-      SELECT id FROM fees WHERE name = 'Phí giữ xe ô tô' ORDER BY id DESC LIMIT 1
-    `);
-    const bicycleResult = await queryRunner.query(`
-      SELECT id FROM fees WHERE name = 'Phí xe đạp' ORDER BY id DESC LIMIT 1
-    `);
-
-    // Add tiers for parking fees
-    await queryRunner.query(`
-      INSERT INTO fee_tiers (fee_type_id, name, from_value, to_value, unit_price) VALUES
-      (${motorbikeResult[0].id}, 'Giá tháng', 0, NULL, 100000),
-      (${carResult[0].id}, 'Giá tháng', 0, NULL, 1200000),
-      (${bicycleResult[0].id}, 'Giá tháng', 0, NULL, 20000)
-    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -84,10 +56,7 @@ export class SeedDefaultFees1736121600000 implements MigrationInterface {
         SELECT id FROM fees WHERE name IN (
           'Tiền điện',
           'Tiền nước',
-          'Phí quản lý',
-          'Phí giữ xe máy',
-          'Phí giữ xe ô tô',
-          'Phí xe đạp'
+          'Phí quản lý'
         )
       )
     `);
@@ -96,10 +65,7 @@ export class SeedDefaultFees1736121600000 implements MigrationInterface {
       DELETE FROM fees WHERE name IN (
         'Tiền điện',
         'Tiền nước',
-        'Phí quản lý',
-        'Phí giữ xe máy',
-        'Phí giữ xe ô tô',
-        'Phí xe đạp'
+        'Phí quản lý'
       )
     `);
   }

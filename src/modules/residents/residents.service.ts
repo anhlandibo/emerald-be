@@ -15,6 +15,10 @@ import { UpdateResidentDto } from './dto/update-resident.dto';
 import { QueryResidentDto } from './dto/query-resident.dto';
 import { UserRole } from '../accounts/enums/user-role.enum';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { Invoice } from '../invoices/entities/invoice.entity';
+import { Booking } from '../bookings/entities/booking.entity';
+import { PaymentTransaction } from '../payments/entities/payment-transaction.entity';
+import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 
 @Injectable()
 export class ResidentsService {
@@ -23,6 +27,14 @@ export class ResidentsService {
     private readonly residentRepository: Repository<Resident>,
     @InjectRepository(Account)
     private readonly accountRepository: Repository<Account>,
+    @InjectRepository(Invoice)
+    private readonly invoiceRepository: Repository<Invoice>,
+    @InjectRepository(Booking)
+    private readonly bookingRepository: Repository<Booking>,
+    @InjectRepository(PaymentTransaction)
+    private readonly paymentTransactionRepository: Repository<PaymentTransaction>,
+    @InjectRepository(ApartmentResident)
+    private readonly apartmentResidentRepository: Repository<ApartmentResident>,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
@@ -269,6 +281,54 @@ export class ResidentsService {
     return {
       message: `Đã xóa thành công ${residents.length} cư dân`,
       deletedCount: residents.length,
+    };
+  }
+
+  async getMyProfile(accountId: number) {
+    // Find resident by account ID
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
+      relations: ['account'],
+    });
+
+    if (!resident) {
+      throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Get all apartments for this resident via ApartmentResident table
+    const apartmentResidents = await this.apartmentResidentRepository.find({
+      where: { residentId: resident.id },
+    });
+
+    const apartmentIds = apartmentResidents.map((ar) => ar.apartmentId);
+
+    // Get invoices for all apartments
+    const invoices =
+      apartmentIds.length > 0
+        ? await this.invoiceRepository.find({
+            where: { apartmentId: In(apartmentIds) },
+            order: { createdAt: 'DESC' },
+          })
+        : [];
+
+    // Get bookings for this resident
+    const bookings = await this.bookingRepository.find({
+      where: { residentId: resident.id },
+      order: { createdAt: 'DESC' },
+    });
+
+    // Get payment transactions for this resident (by accountId)
+    const payments = await this.paymentTransactionRepository.find({
+      where: { accountId },
+      order: { createdAt: 'DESC' },
+    });
+
+    // Return resident with related data
+    return {
+      ...resident,
+      invoices,
+      bookings,
+      payments,
     };
   }
 }
