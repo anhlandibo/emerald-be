@@ -19,6 +19,8 @@ import { Resident } from '../residents/entities/resident.entity';
 
 @Injectable()
 export class InvoicesService {
+  private readonly VAT_RATE = 8; // 8% VAT
+
   constructor(
     @InjectRepository(Invoice)
     private invoiceRepository: Repository<Invoice>,
@@ -38,6 +40,18 @@ export class InvoicesService {
     private apartmentResidentRepository: Repository<ApartmentResident>,
     private cloudinaryService: CloudinaryService,
   ) {}
+
+  /**
+   * Tính VAT cho amount
+   */
+  private calculateVAT(amount: number): {
+    vatAmount: number;
+    totalWithVat: number;
+  } {
+    const vatAmount = Number(((amount * this.VAT_RATE) / 100).toFixed(2));
+    const totalWithVat = Number((amount + vatAmount).toFixed(2));
+    return { vatAmount, totalWithVat };
+  }
 
   /**
    * Tìm apartment ID từ resident ID (lấy từ token)
@@ -148,9 +162,9 @@ export class InvoicesService {
     waterIndex: number,
     electricityIndex: number,
     period: Date,
-  ): Promise<{ details: Partial<InvoiceDetail>[]; totalAmount: number }> {
+  ): Promise<{ details: Partial<InvoiceDetail>[]; subtotalAmount: number }> {
     const details: Partial<InvoiceDetail>[] = [];
-    let totalAmount = 0;
+    let subtotalAmount = 0;
 
     // Lấy fee types cho điện và nước
     const waterFee = await this.feeRepository.findOne({
@@ -198,15 +212,19 @@ export class InvoicesService {
         waterPrice = waterUsage * Number(waterFee.tiers?.[0]?.unitPrice || 0);
       }
 
+      const { vatAmount, totalWithVat } = this.calculateVAT(waterPrice);
+
       details.push({
         feeTypeId: waterFee.id,
         amount: waterUsage,
         unitPrice: undefined,
         totalPrice: waterPrice,
+        vatAmount,
+        totalWithVat,
         calculationBreakdown: waterBreakdown,
       });
 
-      totalAmount += waterPrice;
+      subtotalAmount += waterPrice;
     }
 
     // Tính tiền điện
@@ -240,15 +258,19 @@ export class InvoicesService {
           electricityUsage * Number(electricityFee.tiers?.[0]?.unitPrice || 0);
       }
 
+      const { vatAmount, totalWithVat } = this.calculateVAT(electricityPrice);
+
       details.push({
         feeTypeId: electricityFee.id,
         amount: electricityUsage,
         unitPrice: undefined,
         totalPrice: electricityPrice,
+        vatAmount,
+        totalWithVat,
         calculationBreakdown: electricityBreakdown,
       });
 
-      totalAmount += electricityPrice;
+      subtotalAmount += electricityPrice;
     }
 
     // Thêm các phí cố định khác (phí quản lý, phí dịch vụ, v.v.)
@@ -271,11 +293,15 @@ export class InvoicesService {
         const unitPrice = Number(fee.tiers?.[0]?.unitPrice || 0);
         feePrice = feeAmount * unitPrice;
 
+        const { vatAmount, totalWithVat } = this.calculateVAT(feePrice);
+
         details.push({
           feeTypeId: fee.id,
           amount: feeAmount,
           unitPrice: unitPrice,
           totalPrice: feePrice,
+          vatAmount,
+          totalWithVat,
           calculationBreakdown: undefined,
         });
       } else if (fee.type === FeeType.FIXED_MONTH) {
@@ -283,19 +309,23 @@ export class InvoicesService {
         feeAmount = 1;
         feePrice = Number(fee.tiers?.[0]?.unitPrice || 0);
 
+        const { vatAmount, totalWithVat } = this.calculateVAT(feePrice);
+
         details.push({
           feeTypeId: fee.id,
           amount: feeAmount,
           unitPrice: feePrice,
           totalPrice: feePrice,
+          vatAmount,
+          totalWithVat,
           calculationBreakdown: undefined,
         });
       }
 
-      totalAmount += feePrice;
+      subtotalAmount += feePrice;
     }
 
-    return { details, totalAmount };
+    return { details, subtotalAmount };
   }
 
   /**
@@ -413,19 +443,25 @@ export class InvoicesService {
     const invoiceCode = await this.generateInvoiceCode(apartmentId, periodDate);
 
     // Tính toán chi tiết hóa đơn
-    const { details, totalAmount } = await this.calculateInvoiceDetails(
+    const { details, subtotalAmount } = await this.calculateInvoiceDetails(
       apartmentId,
       waterIndex,
       electricityIndex,
       periodDate,
     );
 
+    // Tính VAT cho toàn bộ hóa đơn
+    const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
+
     // Tạo invoice
     const invoice = this.invoiceRepository.create({
       invoiceCode,
       apartmentId,
       period: periodDate,
-      totalAmount,
+      subtotalAmount,
+      vatRate: this.VAT_RATE,
+      vatAmount,
+      totalAmount: totalWithVat,
       status: InvoiceStatus.UNPAID,
     });
 
@@ -512,19 +548,25 @@ export class InvoicesService {
     const invoiceCode = await this.generateInvoiceCode(apartmentId, periodDate);
 
     // Tính toán chi tiết hóa đơn
-    const { details, totalAmount } = await this.calculateInvoiceDetails(
+    const { details, subtotalAmount } = await this.calculateInvoiceDetails(
       apartmentId,
       waterIndex,
       electricityIndex,
       periodDate,
     );
 
+    // Tính VAT cho toàn bộ hóa đơn
+    const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
+
     // Tạo invoice
     const invoice = this.invoiceRepository.create({
       invoiceCode,
       apartmentId,
       period: periodDate,
-      totalAmount,
+      subtotalAmount,
+      vatRate: this.VAT_RATE,
+      vatAmount,
+      totalAmount: totalWithVat,
       status: InvoiceStatus.UNPAID,
     });
 
@@ -590,17 +632,23 @@ export class InvoicesService {
     await this.invoiceDetailRepository.delete({ invoiceId: id });
 
     // Tính toán lại chi tiết hóa đơn
-    const { details, totalAmount } = await this.calculateInvoiceDetails(
+    const { details, subtotalAmount } = await this.calculateInvoiceDetails(
       apartmentId,
       waterIndex,
       electricityIndex,
       periodDate,
     );
 
+    // Tính VAT cho toàn bộ hóa đơn
+    const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
+
     // Cập nhật invoice
     invoice.apartmentId = apartmentId;
     invoice.period = periodDate;
-    invoice.totalAmount = totalAmount;
+    invoice.subtotalAmount = subtotalAmount;
+    invoice.vatRate = this.VAT_RATE;
+    invoice.vatAmount = vatAmount;
+    invoice.totalAmount = totalWithVat;
     invoice.invoiceCode = await this.generateInvoiceCode(
       apartmentId,
       periodDate,
@@ -822,7 +870,7 @@ export class InvoicesService {
 
     // Recalculate invoice details
     const newDetails: Partial<InvoiceDetail>[] = [];
-    let newTotalAmount = 0;
+    let newSubtotalAmount = 0;
 
     // Xử lý các metered fees (điện, nước)
     for (const detail of invoice.invoiceDetails) {
@@ -860,14 +908,21 @@ export class InvoicesService {
           detail.amount = usage;
         }
 
-        newTotalAmount += detail.totalPrice;
+        // Tính VAT cho detail
+        const { vatAmount, totalWithVat } = this.calculateVAT(
+          detail.totalPrice,
+        );
+        detail.vatAmount = vatAmount;
+        detail.totalWithVat = totalWithVat;
+
+        newSubtotalAmount += detail.totalPrice;
         newDetails.push(detail);
       } else if (detail.feeType?.type === FeeType.METERED) {
         // Metered fee không được update, xóa nó khỏi invoice
         await this.invoiceDetailRepository.remove(detail);
       } else {
         // Fixed fees giữ nguyên
-        newTotalAmount += Number(detail.totalPrice);
+        newSubtotalAmount += Number(detail.totalPrice);
         newDetails.push(detail);
       }
     }
@@ -897,16 +952,20 @@ export class InvoicesService {
 
         if (fee.tiers && fee.tiers.length > 0) {
           const result = this.calculateTieredPrice(usage, fee.tiers);
+          const totalPrice = Number(result.totalPrice);
+          const { vatAmount, totalWithVat } = this.calculateVAT(totalPrice);
 
           newDetails.push({
             feeTypeId,
             amount: usage,
             unitPrice: undefined,
-            totalPrice: Number(result.totalPrice),
+            totalPrice: totalPrice,
+            vatAmount,
+            totalWithVat,
             calculationBreakdown: result.breakdown,
           });
 
-          newTotalAmount += result.totalPrice;
+          newSubtotalAmount += totalPrice;
         }
       }
     }
@@ -924,8 +983,15 @@ export class InvoicesService {
       }
     }
 
-    // Cập nhật invoice total amount
-    invoice.totalAmount = Number(newTotalAmount.toFixed(2));
+    // Tính VAT cho toàn bộ invoice
+    const { vatAmount, totalWithVat } = this.calculateVAT(newSubtotalAmount);
+
+    // Cập nhật invoice
+    invoice.subtotalAmount = Number(newSubtotalAmount.toFixed(2));
+    invoice.vatRate = this.VAT_RATE;
+    invoice.vatAmount = vatAmount;
+    invoice.totalAmount = totalWithVat;
+
     return this.invoiceRepository.save(invoice);
   }
 
