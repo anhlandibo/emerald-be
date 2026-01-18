@@ -38,6 +38,7 @@ import { AuthGuard } from 'src/guards/auth.guard';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CurrentUser } from 'src/decorators/user.decorator';
 import { UploadApiResponse } from 'cloudinary';
+import { UserRole } from '../accounts/enums/user-role.enum';
 
 @ApiTags('Issues')
 @Controller('issues')
@@ -100,10 +101,13 @@ export class IssuesController {
   }
 
   @Get()
+  @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiDoc({
     summary: 'Lấy danh sách tất cả phản ánh',
-    description: 'Lấy danh sách phản ánh với các bộ lọc',
+    description:
+      'Admin: Lấy tất cả issues. Technician: Lấy chỉ những issue được assign',
+    auth: true,
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -112,8 +116,9 @@ export class IssuesController {
   })
   async findAll(
     @Query() queryIssueDto: QueryIssueDto,
+    @CurrentUser('role') role: UserRole,
   ): Promise<IssueResponseDto[]> {
-    return this.issuesService.findAll(queryIssueDto);
+    return this.issuesService.findAll(queryIssueDto, role);
   }
 
   @Get('mine')

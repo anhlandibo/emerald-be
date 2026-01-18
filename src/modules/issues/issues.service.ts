@@ -20,6 +20,7 @@ import { UpdateIssueStatusDto } from './dtos/update-issue-status.dto';
 import { IssueTypeLabels } from './enums/issue-type.enum';
 import { IssueStatus, IssueStatusLabels } from './enums/issue-status.enum';
 import { IssueResponseDto } from './dtos/issue-response.dto';
+import { UserRole } from '../accounts/enums/user-role.enum';
 
 @Injectable()
 export class IssuesService {
@@ -85,7 +86,10 @@ export class IssuesService {
     return this.findOne(savedIssue.id);
   }
 
-  async findAll(query: QueryIssueDto): Promise<IssueResponseDto[]> {
+  async findAll(
+    query: QueryIssueDto,
+    role: UserRole,
+  ): Promise<IssueResponseDto[]> {
     const { search, status, type, blockId, isUrgent, sortBy, sortOrder } =
       query;
 
@@ -95,6 +99,17 @@ export class IssuesService {
       .leftJoinAndSelect('reporter.account', 'account')
       .leftJoinAndSelect('issue.block', 'block')
       .where('issue.isActive = :isActive', { isActive: true });
+
+    // Role-based filtering: Technician only sees assigned issues
+    if (role === UserRole.TECHNICIAN) {
+      queryBuilder.andWhere(
+        'issue.assignedToTechnicianDepartment = :assigned',
+        {
+          assigned: true,
+        },
+      );
+    }
+    // Admin sees all issues (no additional filter needed)
 
     if (status) {
       queryBuilder.andWhere('issue.status = :status', { status });
