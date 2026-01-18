@@ -17,6 +17,7 @@ import {
   QueryUserNotificationDto,
 } from './dto/query-system-notification.dto';
 import { SocketGateway } from 'src/modules/sockets/socket.gateway';
+import { AccountsService } from '../accounts/accounts.service';
 
 @Injectable()
 export class SystemNotificationsService {
@@ -28,6 +29,7 @@ export class SystemNotificationsService {
     private readonly systemNotificationRepository: Repository<SystemNotification>,
     @InjectRepository(SystemUserNotification)
     private readonly systemUserNotificationRepository: Repository<SystemUserNotification>,
+    private readonly accountsService: AccountsService,
   ) {}
 
   /**
@@ -39,18 +41,33 @@ export class SystemNotificationsService {
 
   /**
    * Send system notification in real-time and save to database
+   * If targetUserIds is empty or not provided, sends to ALL active users
    */
   async sendSystemNotification(
     dto: SendSystemNotificationDto,
     createdBy: number,
   ) {
     try {
+      // Determine target users - if empty, get all active users
+      let targetUserIds = dto.targetUserIds || [];
+
+      if (targetUserIds.length === 0) {
+        // Fetch all active users
+        const allUsers = await this.accountsService.findAll({
+          isActive: true,
+        });
+        targetUserIds = allUsers.map((user) => user.id);
+        this.logger.log(
+          `📢 Broadcasting to ${targetUserIds.length} active users`,
+        );
+      }
+
       const notification = new SystemNotification();
       notification.title = dto.title;
       notification.content = dto.content;
       notification.type = dto.type || SystemNotificationType.INFO;
       notification.priority = dto.priority || SystemNotificationPriority.NORMAL;
-      notification.targetUserIds = dto.targetUserIds || [];
+      notification.targetUserIds = targetUserIds;
       notification.metadata = dto.metadata || {};
       notification.actionUrl = dto.actionUrl || null;
       notification.actionText = dto.actionText || null;
@@ -76,9 +93,10 @@ export class SystemNotificationsService {
       return {
         success: true,
         notification: savedNotification,
+        recipientCount: targetUserIds.length,
         message: dto.scheduledFor
           ? 'Thông báo đã được lên lịch'
-          : 'Gửi thông báo hệ thống thành công',
+          : `Gửi thông báo hệ thống thành công cho ${targetUserIds.length} người dùng`,
       };
     } catch (error) {
       this.logger.error('Error sending system notification:', error);
@@ -90,20 +108,27 @@ export class SystemNotificationsService {
   }
 
   /**
-   * Send notification now via socket
+   * Send notification now via socket and create user notification records
    */
   private async sendNotificationNow(notification: SystemNotification) {
     try {
+      // Create user notification records for all target users
       if (notification.targetUserIds && notification.targetUserIds.length > 0) {
         const userNotifications = notification.targetUserIds.map((userId) => {
           const userNotif = new SystemUserNotification();
           userNotif.userId = userId;
           userNotif.notificationId = notification.id;
+          userNotif.isRead = false;
           return userNotif;
         });
+
         await this.systemUserNotificationRepository.save(userNotifications);
+        this.logger.log(
+          `✅ Created ${userNotifications.length} user notification records`,
+        );
       }
 
+      // Send via socket gateway
       if (this.socketGateway) {
         const payload = {
           id: notification.id,
@@ -127,6 +152,10 @@ export class SystemNotificationsService {
         notification.isSent = true;
         notification.sentAt = new Date();
         await this.systemNotificationRepository.save(notification);
+
+        this.logger.log(
+          `📤 Sent notification to ${notification.targetUserIds.length} users`,
+        );
       }
     } catch (error) {
       this.logger.error('Error in sendNotificationNow:', error);

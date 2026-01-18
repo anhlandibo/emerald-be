@@ -25,7 +25,7 @@ import { AccountsModule } from '../accounts/accounts.module';
           secret,
           signOptions: {
             expiresIn: (configService.get<string>('JWT_EXPIRATION') ||
-              '15m') as any,
+              '120m') as any,
           },
         };
       },

@@ -54,7 +54,7 @@ export class SendSystemNotificationDto {
   @ApiProperty({
     example: [1, 2, 3],
     description:
-      'User IDs to send notification to (empty or null = broadcast to all online users)',
+      'User IDs to send notification to. Leave empty or null to broadcast to ALL active users. User notification records will be automatically created.',
     required: false,
   })
   @IsArray()

@@ -9,6 +9,10 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import {
+  SystemNotificationPriority,
+  SystemNotificationType,
+} from 'src/modules/system-notifications/entities/system-notification.entity';
 
 @WebSocketGateway({
   cors: {
@@ -114,9 +118,14 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       id: number;
       title: string;
       content: string;
-      type: string;
-      metadata?: any;
+      type: SystemNotificationType;
+      priority: SystemNotificationPriority;
+      metadata: Record<string, any>;
+      actionUrl: string | null;
+      actionText: string | null;
+      isPersistent: boolean;
       createdAt: Date;
+      expiresAt: Date;
     },
     userIds?: number[],
   ) {
