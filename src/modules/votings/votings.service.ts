@@ -115,6 +115,142 @@ export class VotingsService {
     return undefined;
   }
 
+  /**
+   * Get eligible residents count for a voting based on targetScope and targets
+   */
+  async getEligibleVotersCount(
+    votingId: number,
+    targetScope: ScopeType,
+  ): Promise<number> {
+    if (targetScope === ScopeType.ALL) {
+      // All residents in the building
+      const result = await this.apartmentResidentRepository
+        .createQueryBuilder('apartmentResident')
+        .leftJoinAndSelect('apartmentResident.resident', 'resident')
+        .where('resident.isActive = true')
+        .select('COUNT(DISTINCT apartmentResident.residentId)', 'count')
+        .getRawOne();
+
+      return result?.count ? parseInt(result.count, 10) : 0;
+    }
+
+    // Get target blocks for this voting
+    const targetBlocks = await this.targetBlockRepository.find({
+      where: { votingId },
+    });
+
+    if (targetBlocks.length === 0) {
+      return 0;
+    }
+
+    if (targetScope === ScopeType.BLOCK) {
+      // Count residents in target blocks (all floors)
+      const blockIds = targetBlocks.map((tb) => tb.blockId);
+
+      const result = await this.apartmentResidentRepository
+        .createQueryBuilder('apartmentResident')
+        .leftJoinAndSelect('apartmentResident.apartment', 'apartment')
+        .leftJoinAndSelect('apartment.block', 'block')
+        .leftJoinAndSelect('apartmentResident.resident', 'resident')
+        .where('block.id IN (:...blockIds)', { blockIds })
+        .andWhere('apartment.isActive = true')
+        .andWhere('resident.isActive = true')
+        .select('COUNT(DISTINCT apartmentResident.residentId)', 'count')
+        .getRawOne();
+
+      return result?.count ? parseInt(result.count, 10) : 0;
+    }
+
+    if (targetScope === ScopeType.FLOOR) {
+      // Count residents in target blocks and floors
+      const query = this.apartmentResidentRepository
+        .createQueryBuilder('apartmentResident')
+        .leftJoinAndSelect('apartmentResident.apartment', 'apartment')
+        .leftJoinAndSelect('apartment.block', 'block')
+        .leftJoinAndSelect('apartmentResident.resident', 'resident')
+        .where('apartment.isActive = true')
+        .andWhere('resident.isActive = true');
+
+      // Add block and floor filters
+      const orConditions: string[] = [];
+      const params: Record<string, any> = {};
+
+      targetBlocks.forEach((tb, idx) => {
+        const floors = this.parseFloorNumbers(tb.targetFloorNumbers) || [];
+        if (floors.length > 0) {
+          orConditions.push(
+            `(block.id = :blockId${idx} AND apartment.floor IN (:...floors${idx}))`,
+          );
+          params[`blockId${idx}`] = tb.blockId;
+          params[`floors${idx}`] = floors;
+        }
+      });
+
+      if (orConditions.length === 0) {
+        return 0;
+      }
+
+      query.andWhere(`(${orConditions.join(' OR ')})`);
+
+      Object.entries(params).forEach(([key, value]) => {
+        query.setParameter(key, value);
+      });
+
+      const result = await query
+        .select('COUNT(DISTINCT apartmentResident.residentId)', 'count')
+        .getRawOne();
+
+      return result?.count ? parseInt(result.count, 10) : 0;
+    }
+
+    return 0;
+  }
+
+  /**
+   * Get total votes cast for a voting
+   */
+  async getVotesCastCount(votingId: number): Promise<number> {
+    const result = await this.residentOptionRepository
+      .createQueryBuilder('residentOption')
+      .where('residentOption.votingId = :votingId', { votingId })
+      .select('COUNT(DISTINCT residentOption.residentId)', 'count')
+      .getRawOne();
+
+    return result?.count ? parseInt(result.count, 10) : 0;
+  }
+
+  /**
+   * Calculate voting statistics (eligible voters, votes cast, ratio, percentage)
+   */
+  async calculateVotingStats(
+    votingId: number,
+    targetScope: ScopeType,
+  ): Promise<{
+    totalEligibleVoters: number;
+    totalVotesCast: number;
+    votingRatio: string;
+    votingPercentage: number;
+  }> {
+    const totalEligibleVoters = await this.getEligibleVotersCount(
+      votingId,
+      targetScope,
+    );
+    const totalVotesCast = await this.getVotesCastCount(votingId);
+
+    const votingRatio = `${totalVotesCast}/${totalEligibleVoters}`;
+    const votingPercentage =
+      totalEligibleVoters > 0
+        ? Math.round((totalVotesCast / totalEligibleVoters) * 10000) / 100
+        : 0;
+
+    return {
+      totalEligibleVoters,
+      totalVotesCast,
+      votingRatio,
+      votingPercentage,
+    };
+  }
+
   async create(createDto: CreateVotingDto, files?: Express.Multer.File[]) {
     // Validate dates
     const startTime = new Date(createDto.startTime);
@@ -302,6 +438,10 @@ export class VotingsService {
         const voteStatus = this.getVotingStatus(voting);
         const leadingOption = await this.getLeadingOption(voting.id);
         const scopeDisplay = await this.getScopeDisplay(voting.id);
+        const votingStats = await this.calculateVotingStats(
+          voting.id,
+          voting.targetScope,
+        );
 
         return {
           id: voting.id,
@@ -311,6 +451,10 @@ export class VotingsService {
           isRequired: voting.isRequired,
           status: voteStatus,
           leadingOption: leadingOption || null,
+          totalEligibleVoters: votingStats.totalEligibleVoters,
+          totalVotesCast: votingStats.totalVotesCast,
+          votingRatio: votingStats.votingRatio,
+          votingPercentage: votingStats.votingPercentage,
         };
       }),
     );
@@ -337,6 +481,9 @@ export class VotingsService {
       relations: ['block'],
     });
 
+    // Calculate voting statistics
+    const votingStats = await this.calculateVotingStats(id, voting.targetScope);
+
     return {
       ...voting,
       status: this.getVotingStatus(voting),
@@ -345,6 +492,10 @@ export class VotingsService {
         blockName: tb.block?.name,
         targetFloorNumbers: tb.targetFloorNumbers,
       })),
+      totalEligibleVoters: votingStats.totalEligibleVoters,
+      totalVotesCast: votingStats.totalVotesCast,
+      votingRatio: votingStats.votingRatio,
+      votingPercentage: votingStats.votingPercentage,
     };
   }
 

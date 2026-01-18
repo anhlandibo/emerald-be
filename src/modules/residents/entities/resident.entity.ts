@@ -48,13 +48,13 @@ export class Resident {
   @Column({ type: 'varchar', nullable: false })
   nationality: string;
 
-  @Column({ type: 'varchar', nullable: false })
+  @Column({ type: 'varchar', nullable: true })
   province: string;
 
-  @Column({ type: 'varchar', nullable: false })
-  district: string;
+  @Column({ type: 'varchar', nullable: true })
+  district: string | null;
 
-  @Column({ type: 'varchar', nullable: false })
+  @Column({ type: 'varchar', nullable: true })
   ward: string;
 
   @Column({ type: 'text', nullable: true, name: 'detail_address' })

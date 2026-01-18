@@ -11,6 +11,7 @@ import { IssueType } from '../enums/issue-type.enum';
 import { IssueStatus } from '../enums/issue-status.enum';
 import { Resident } from '../../residents/entities/resident.entity';
 import { Block } from '../../blocks/entities/block.entity';
+import { MaintenanceTicket } from '../../maintenance-tickets/entities/maintenance-ticket.entity';
 
 @Entity('issues')
 export class Issue {
@@ -57,6 +58,9 @@ export class Issue {
   @Column({ type: 'text', nullable: true })
   feedback: string;
 
+  @Column({ type: 'text', name: 'rejection_reason', nullable: true })
+  rejectionReason: string;
+
   @Column({ type: 'boolean', name: 'is_urgent', default: false })
   isUrgent: boolean;
 
@@ -74,6 +78,13 @@ export class Issue {
   })
   maintenanceTicketId: number;
 
+  @Column({
+    type: 'boolean',
+    name: 'assigned_to_technician_department',
+    default: false,
+  })
+  assignedToTechnicianDepartment: boolean;
+
   @Column({ type: 'boolean', name: 'is_active', default: true })
   isActive: boolean;
 
@@ -90,4 +101,8 @@ export class Issue {
   @ManyToOne(() => Block, { eager: false })
   @JoinColumn({ name: 'block_id' })
   block: Block;
+
+  @ManyToOne(() => MaintenanceTicket, { eager: false })
+  @JoinColumn({ name: 'maintenance_ticket_id' })
+  maintenanceTicket: MaintenanceTicket;
 }

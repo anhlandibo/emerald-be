@@ -5,6 +5,7 @@ import { MaintenanceTicket } from './entities/maintenance-ticket.entity';
 import { Asset } from '../assets/entities/asset.entity';
 import { Block } from '../blocks/entities/block.entity';
 import { Technician } from '../technicians/entities/technician.entity';
+import { Issue } from '../issues/entities/issue.entity';
 import { AssetsService } from '../assets/assets.service';
 import { SupabaseStorageService } from '../supabase-storage/supabase-storage.service';
 import { CreateMaintenanceTicketDto } from './dto/create-maintenance-ticket.dto';
@@ -23,6 +24,7 @@ import { QueryMaintenanceTicketDto } from './dto/query-maintenance-ticket.dto';
 import { TicketStatus } from './enums/ticket-status.enum';
 import { TicketPriority } from './enums/ticket-priority.enum';
 import { MaintenanceResult } from './enums/maintenance-result.enum';
+import { IssueStatus } from '../issues/enums/issue-status.enum';
 import { AssetStatus } from '../assets/enums/asset-status.enum';
 import { plainToInstance } from 'class-transformer';
 import { MaintenanceTicketListItemDto } from './dto/maintenance-ticket-list.dto';
@@ -42,6 +44,8 @@ export class MaintenanceTicketsService {
     private readonly blockRepository: Repository<Block>,
     @InjectRepository(Technician)
     private readonly technicianRepository: Repository<Technician>,
+    @InjectRepository(Issue)
+    private readonly issueRepository: Repository<Issue>,
     private readonly assetsService: AssetsService,
     private readonly supabaseStorageService: SupabaseStorageService,
     private readonly systemNotificationsService: SystemNotificationsService,
@@ -361,6 +365,14 @@ export class MaintenanceTicketsService {
         blockName: ticket.block?.name,
         floor: ticket.floor,
         technicianName: ticket.technician?.fullName,
+        estimatedCost:
+          ticket.estimatedCost !== undefined && ticket.estimatedCost !== null
+            ? Number(ticket.estimatedCost)
+            : null,
+        actualCost:
+          ticket.actualCost !== undefined && ticket.actualCost !== null
+            ? Number(ticket.actualCost)
+            : null,
         createdAt: ticket.createdAt,
       }),
     );
@@ -409,10 +421,14 @@ export class MaintenanceTicketsService {
       resultNote: ticket.resultNote,
       hasIssue: ticket.hasIssue,
       issueDetail: ticket.issueDetail,
-      estimatedCost: ticket.estimatedCost
-        ? Number(ticket.estimatedCost)
-        : undefined,
-      actualCost: ticket.actualCost ? Number(ticket.actualCost) : undefined,
+      estimatedCost:
+        ticket.estimatedCost !== undefined && ticket.estimatedCost !== null
+          ? Number(ticket.estimatedCost)
+          : null,
+      actualCost:
+        ticket.actualCost !== undefined && ticket.actualCost !== null
+          ? Number(ticket.actualCost)
+          : null,
       createdAt: ticket.createdAt,
     });
   }
@@ -466,6 +482,14 @@ export class MaintenanceTicketsService {
         blockName: ticket.block?.name,
         floor: ticket.floor,
         technicianName: ticket.technician?.fullName,
+        estimatedCost:
+          ticket.estimatedCost !== undefined && ticket.estimatedCost !== null
+            ? Number(ticket.estimatedCost)
+            : null,
+        actualCost:
+          ticket.actualCost !== undefined && ticket.actualCost !== null
+            ? Number(ticket.actualCost)
+            : null,
         createdAt: ticket.createdAt,
       }),
     );
@@ -660,6 +684,14 @@ export class MaintenanceTicketsService {
           note: `Cần theo dõi: ${completeDto.resultNote || 'Cần theo dõi thêm'}`,
         });
       }
+    }
+
+    // update associated issue status to RESOLVED if ticket is completed
+    if (ticket.id) {
+      await this.issueRepository.update(
+        { maintenanceTicketId: ticket.id },
+        { status: IssueStatus.RESOLVED },
+      );
     }
 
     return this.findOne(id);

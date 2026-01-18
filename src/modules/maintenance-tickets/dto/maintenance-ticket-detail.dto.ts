@@ -108,5 +108,15 @@ export class MaintenanceTicketDetailDto {
 
   // Cost
   @Expose()
+  @ApiPropertyOptional({ example: 1500000 })
+  estimatedCost?: number;
+
+  @Expose()
+  @ApiPropertyOptional({ example: 1500000 })
+  actualCost?: number;
+
+  @Expose()
+  @ApiProperty({ type: Date })
+  @Type(() => Date)
   createdAt: Date;
 }

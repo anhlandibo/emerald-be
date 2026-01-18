@@ -27,6 +27,16 @@ class BlockDto {
   name: string;
 }
 
+class MaintenanceTicketDto {
+  @ApiProperty({ example: 1 })
+  @Expose()
+  id: number;
+
+  @ApiProperty({ example: 'Sửa chữa thang máy tòa A' })
+  @Expose()
+  title: string;
+}
+
 @Exclude()
 export class IssueResponseDto {
   @ApiProperty({ example: 1 })
@@ -86,6 +96,13 @@ export class IssueResponseDto {
   @Expose()
   feedback: string;
 
+  @ApiProperty({
+    example: 'Vấn đề không nằm trong phạm vi quản lý',
+    nullable: true,
+  })
+  @Expose()
+  rejectionReason: string | null;
+
   @ApiProperty({ type: ReporterDto, nullable: true })
   @Expose()
   @Type(() => ReporterDto)
@@ -102,4 +119,13 @@ export class IssueResponseDto {
   @ApiProperty({ example: '2024-01-20T15:00:00Z', nullable: true })
   @Expose()
   estimatedCompletionDate: Date;
+
+  @ApiProperty({ example: true })
+  @Expose()
+  assignedToTechnicianDepartment: boolean;
+
+  @ApiProperty({ type: MaintenanceTicketDto, nullable: true })
+  @Expose()
+  @Type(() => MaintenanceTicketDto)
+  maintenanceTicket: MaintenanceTicketDto | null;
 }
