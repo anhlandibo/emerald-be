@@ -8,6 +8,7 @@ import { Invoice } from '../invoices/entities/invoice.entity';
 import { Booking } from '../bookings/entities/booking.entity';
 import { PaymentTransaction } from '../payments/entities/payment-transaction.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
+import { Apartment } from '../apartments/entities/apartment.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
       Booking,
       PaymentTransaction,
       ApartmentResident,
+      Apartment,
     ]),
     CloudinaryModule,
   ],
