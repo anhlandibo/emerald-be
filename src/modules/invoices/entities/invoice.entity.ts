@@ -41,6 +41,35 @@ export class Invoice {
     precision: 12,
     scale: 2,
     nullable: false,
+    name: 'subtotal_amount',
+  })
+  subtotalAmount: number;
+
+  @Column({
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: false,
+    default: 8,
+    name: 'vat_rate',
+  })
+  vatRate: number;
+
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: false,
+    default: 0,
+    name: 'vat_amount',
+  })
+  vatAmount: number;
+
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: false,
     name: 'total_amount',
   })
   totalAmount: number;

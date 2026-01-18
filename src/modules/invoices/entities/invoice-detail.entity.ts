@@ -56,6 +56,26 @@ export class InvoiceDetail {
   totalPrice: number;
 
   @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: false,
+    default: 0,
+    name: 'vat_amount',
+  })
+  vatAmount: number;
+
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: false,
+    default: 0,
+    name: 'total_with_vat',
+  })
+  totalWithVat: number;
+
+  @Column({
     type: 'jsonb',
     nullable: true,
     name: 'calculation_breakdown',

@@ -27,6 +27,14 @@ class InvoiceDetailItemDto {
   @Expose()
   totalPrice: number;
 
+  @ApiProperty({ example: 12800 })
+  @Expose()
+  vatAmount: number;
+
+  @ApiProperty({ example: 172800 })
+  @Expose()
+  totalWithVat: number;
+
   @ApiProperty({
     example: { 'Bậc 1': '50*1600', 'Bậc 2': '50*1700' },
     required: false,
@@ -52,7 +60,22 @@ export class InvoiceDetailResponseDto {
   @Expose()
   period: Date;
 
-  @ApiProperty({ example: 1500000.0 })
+  @ApiProperty({ example: 1500000.0, description: 'Tiền trước khi tính thuế' })
+  @Expose()
+  subtotalAmount: number;
+
+  @ApiProperty({ example: 8, description: 'Tỷ lệ VAT (%)' })
+  @Expose()
+  vatRate: number;
+
+  @ApiProperty({ example: 120000.0, description: 'Tiền thuế VAT' })
+  @Expose()
+  vatAmount: number;
+
+  @ApiProperty({
+    example: 1620000.0,
+    description: 'Tổng tiền sau khi tính thuế',
+  })
   @Expose()
   totalAmount: number;
 
