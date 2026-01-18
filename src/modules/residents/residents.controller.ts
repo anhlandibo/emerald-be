@@ -21,6 +21,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiConsumes,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResidentsService } from './residents.service';
@@ -28,6 +29,7 @@ import { CreateResidentDto } from './dto/create-resident.dto';
 import { UpdateResidentDto } from './dto/update-resident.dto';
 import { QueryResidentDto } from './dto/query-resident.dto';
 import { ResidentResponseDto } from './dto/resident-response.dto';
+import { ResidentProfileResponseDto } from './dto/resident-profile-response.dto';
 import { DeleteManyResidentsDto } from './dto/delete-many-residents.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
@@ -35,6 +37,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { Roles } from 'src/decorators/role.decorator';
 import { UserRole } from '../accounts/enums/user-role.enum';
+import { CurrentUser } from 'src/decorators/user.decorator';
 
 @ApiTags('Residents')
 @Controller('residents')
@@ -82,6 +85,32 @@ export class ResidentsController {
   async findAll(@Query() queryResidentDto: QueryResidentDto) {
     const result = await this.residentsService.findAll(queryResidentDto);
     return plainToInstance(ResidentResponseDto, result);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Get current resident profile with invoices, bookings, and payments',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Resident profile retrieved successfully',
+    type: ResidentProfileResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Resident not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  async getMyProfile(@CurrentUser('id') accountId: number) {
+    const profile = await this.residentsService.getMyProfile(accountId);
+    return plainToInstance(ResidentProfileResponseDto, profile);
   }
 
   @Get(':id')
