@@ -56,8 +56,17 @@ export class MoMoService {
       );
     }
 
-    const { orderId, amount, orderInfo, redirectUrl, ipnUrl, requestId } =
-      request;
+    const {
+      orderId,
+      amount: rawAmount,
+      orderInfo,
+      redirectUrl,
+      ipnUrl,
+      requestId,
+    } = request;
+
+    // Round amount to integer (VND doesn't have cents)
+    const amount = Math.round(rawAmount);
 
     const requestType = 'payWithMethod';
     const extraData = '';
@@ -145,6 +154,9 @@ export class MoMoService {
       extraData,
       signature,
     } = data;
+
+    // Round amount to integer (VND doesn't have cents)
+    amount = Math.round(Number(amount));
 
     // MoMo calculates signature using DECODED values
     // If we received URL-encoded values, we must decode them first

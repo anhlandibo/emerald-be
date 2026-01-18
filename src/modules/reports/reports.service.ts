@@ -3,14 +3,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThan, LessThan } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Invoice } from '../invoices/entities/invoice.entity';
+import { InvoiceDetail } from '../invoices/entities/invoice-detail.entity';
 import { Asset } from '../assets/entities/asset.entity';
 import { Booking } from '../bookings/entities/booking.entity';
 import { Service } from '../services/entities/service.entity';
 import { MaintenanceTicket } from '../maintenance-tickets/entities/maintenance-ticket.entity';
+import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { TicketStatus } from '../maintenance-tickets/enums/ticket-status.enum';
 import { AssetStatus } from '../assets/enums/asset-status.enum';
 import { InvoiceStatus } from '../invoices/enums/invoice-status.enum';
 import { BookingStatus } from '../bookings/enums/booking-status.enum';
+import { FeeType } from '../fees/enums/fee-type.enum';
 import {
   DashboardStatisticsDto,
   RevenueStatisticsDto,
@@ -20,6 +23,10 @@ import {
   ServiceBookingChartDto,
   AssetStatusStatisticsDto,
 } from './dto/dashboard-statistics.dto';
+import {
+  MonthlyReportsResponseDto,
+  MonthlyReportDataDto,
+} from './dto/monthly-reports.dto';
 import { QueryReportDto } from './dto/query-report.dto';
 
 @Injectable()
@@ -27,6 +34,8 @@ export class ReportsService {
   constructor(
     @InjectRepository(Invoice)
     private readonly invoiceRepository: Repository<Invoice>,
+    @InjectRepository(InvoiceDetail)
+    private readonly invoiceDetailRepository: Repository<InvoiceDetail>,
     @InjectRepository(Asset)
     private readonly assetRepository: Repository<Asset>,
     @InjectRepository(Booking)
@@ -35,6 +44,8 @@ export class ReportsService {
     private readonly serviceRepository: Repository<Service>,
     @InjectRepository(MaintenanceTicket)
     private readonly maintenanceTicketRepository: Repository<MaintenanceTicket>,
+    @InjectRepository(ApartmentResident)
+    private readonly apartmentResidentRepository: Repository<ApartmentResident>,
   ) {}
 
   /**
@@ -374,6 +385,237 @@ export class ReportsService {
   }
 
   /**
+   * Get the latest month with invoices
+   */
+  private async getLatestInvoiceMonth(): Promise<Date | null> {
+    const result = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('MAX(invoice.period)', 'latestMonth')
+      .getRawOne();
+
+    if (!result?.latestMonth) {
+      return null;
+    }
+
+    const latestMonth = new Date(result.latestMonth);
+    latestMonth.setDate(1); // Set to first day of month
+    latestMonth.setHours(0, 0, 0, 0);
+
+    return latestMonth;
+  }
+
+  /**
+   * Calculate date range for a specific month
+   */
+  private getMonthDateRange(
+    year: number,
+    month: number,
+  ): { start: Date; end: Date } {
+    const start = new Date(year, month - 1, 1);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(year, month, 0);
+    end.setHours(23, 59, 59, 999);
+
+    return { start, end };
+  }
+
+  /**
+   * Get 6 months of revenue report data
+   */
+  async getMonthlyReports(): Promise<MonthlyReportsResponseDto> {
+    // Get the latest month with invoices
+    const latestMonth = await this.getLatestInvoiceMonth();
+
+    if (!latestMonth) {
+      throw new HttpException(
+        'Không có dữ liệu hóa đơn nào',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Calculate 6 months back from latest month
+    const sixMonthsData: MonthlyReportDataDto[] = [];
+    let totalRevenue6Months = 0;
+    let currentDebt = 0;
+
+    // Generate 6 months of data (from 6 months ago to latest month)
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(latestMonth);
+      targetDate.setMonth(targetDate.getMonth() - i);
+
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+      const { start, end } = this.getMonthDateRange(year, month);
+
+      // Get invoices for this month (PAID only for revenue)
+      const paidInvoices = await this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .leftJoinAndSelect(
+          'invoice.invoiceDetails',
+          'detail',
+          'invoice.id = detail.invoiceId',
+        )
+        .leftJoinAndSelect('detail.feeType', 'fee')
+        .where('invoice.period BETWEEN :start AND :end', { start, end })
+        .andWhere('invoice.status = :status', { status: InvoiceStatus.PAID })
+        .getMany();
+
+      // Get all invoices (for unpaid amount)
+      const allInvoices = await this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .where('invoice.period BETWEEN :start AND :end', { start, end })
+        .getMany();
+
+      // Calculate revenue by type
+      let electricityRevenue = 0;
+      let waterRevenue = 0;
+      let managementFeeRevenue = 0;
+
+      paidInvoices.forEach((invoice) => {
+        if (invoice.invoiceDetails) {
+          invoice.invoiceDetails.forEach((detail) => {
+            if (detail.feeType) {
+              if (detail.feeType.name === 'Tiền điện') {
+                electricityRevenue += Number(
+                  detail.totalWithVat || detail.totalPrice,
+                );
+              } else if (detail.feeType.name === 'Tiền nước') {
+                waterRevenue += Number(
+                  detail.totalWithVat || detail.totalPrice,
+                );
+              } else if (
+                detail.feeType.type === FeeType.FIXED_AREA ||
+                detail.feeType.type === FeeType.FIXED_MONTH
+              ) {
+                managementFeeRevenue += Number(
+                  detail.totalWithVat || detail.totalPrice,
+                );
+              }
+            }
+          });
+        }
+      });
+
+      const totalMonthRevenue =
+        electricityRevenue + waterRevenue + managementFeeRevenue;
+
+      // Calculate unpaid amount for this month
+      const unpaidInvoices = allInvoices.filter(
+        (inv) => inv.status === InvoiceStatus.UNPAID,
+      );
+      const unpaidAmount = unpaidInvoices.reduce(
+        (sum, inv) => sum + Number(inv.totalAmount || 0),
+        0,
+      );
+
+      // Paid invoice count
+      const paidCount = paidInvoices.length;
+      const totalCount = allInvoices.length;
+
+      const monthlyData: MonthlyReportDataDto = {
+        month: monthStr,
+        electricityRevenue: Math.round(electricityRevenue),
+        waterRevenue: Math.round(waterRevenue),
+        managementFeeRevenue: Math.round(managementFeeRevenue),
+        totalRevenue: Math.round(totalMonthRevenue),
+        invoiceCount: totalCount,
+        paidInvoiceCount: paidCount,
+        unpaidAmount: Math.round(unpaidAmount),
+      };
+
+      sixMonthsData.push(monthlyData);
+      totalRevenue6Months += totalMonthRevenue;
+      currentDebt += unpaidAmount;
+    }
+
+    const averageMonthlyRevenue =
+      sixMonthsData.length > 0
+        ? Math.round(totalRevenue6Months / sixMonthsData.length)
+        : 0;
+
+    const startMonth = sixMonthsData[0]?.month || '';
+    const endMonth = sixMonthsData[sixMonthsData.length - 1]?.month || '';
+
+    return {
+      data: sixMonthsData,
+      startMonth,
+      endMonth,
+      totalRevenue6Months: Math.round(totalRevenue6Months),
+      averageMonthlyRevenue,
+      currentDebt: Math.round(currentDebt),
+    };
+  }
+
+  /**
+   * Export monthly reports to Excel
+   */
+  async exportMonthlyReportsToExcel(): Promise<Buffer> {
+    const reports = await this.getMonthlyReports();
+
+    const data: any[][] = [];
+
+    // Add title
+    data.push(['BÁO CÁO DOANH THU 6 THÁNG']);
+    data.push([]);
+
+    // Add summary
+    data.push(['TỔNG HỢP']);
+    data.push(['Tổng doanh thu 6 tháng', reports.totalRevenue6Months]);
+    data.push(['Trung bình doanh thu/tháng', reports.averageMonthlyRevenue]);
+    data.push(['Công nợ hiện tại', reports.currentDebt]);
+    data.push([]);
+
+    // Add detail table header
+    data.push([
+      'THÁNG',
+      'ĐIỆN',
+      'NƯỚC',
+      'PHÍ QL',
+      'TỔNG',
+      'SỐ HÓA ĐƠN',
+      'ĐÃ THANH TOÁN',
+      'CÔNG NỢ',
+    ]);
+
+    // Add detail rows
+    reports.data.forEach((row) => {
+      data.push([
+        row.month,
+        row.electricityRevenue,
+        row.waterRevenue,
+        row.managementFeeRevenue,
+        row.totalRevenue,
+        row.invoiceCount,
+        row.paidInvoiceCount,
+        row.unpaidAmount,
+      ]);
+    });
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 15 }, // Month
+      { wch: 15 }, // Electricity
+      { wch: 15 }, // Water
+      { wch: 15 }, // Management fee
+      { wch: 15 }, // Total
+      { wch: 15 }, // Invoice count
+      { wch: 15 }, // Paid count
+      { wch: 15 }, // Unpaid amount
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Monthly Reports');
+
+    return XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' }) as Buffer;
+  }
+
+  /**
    * Export dashboard statistics to Excel (XLSX format)
    */
   async exportDashboardToExcel(queryDto: QueryReportDto): Promise<Buffer> {
@@ -447,6 +689,241 @@ export class ReportsService {
 
     // Add worksheet to workbook
     XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
+
+    // Write to buffer
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
+    return excelBuffer as Buffer;
+  }
+
+  /**
+   * Get apartment IDs for a resident
+   */
+  private async getResidentApartmentIds(accountId: number): Promise<number[]> {
+    const apartmentResidents = await this.apartmentResidentRepository
+      .createQueryBuilder('ar')
+      .leftJoinAndSelect('ar.resident', 'resident')
+      .where('resident.accountId = :accountId', { accountId })
+      .getMany();
+
+    return apartmentResidents.map((ar) => ar.apartmentId);
+  }
+
+  /**
+   * Get 6 months of revenue report data for a specific resident
+   */
+  async getMonthlyReportsByResident(
+    accountId: number,
+  ): Promise<MonthlyReportsResponseDto> {
+    // Get all apartment IDs for this resident
+    const apartmentIds = await this.getResidentApartmentIds(accountId);
+
+    if (apartmentIds.length === 0) {
+      throw new HttpException(
+        'Cư dân không quản lý bất kỳ căn hộ nào',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Get the latest month with invoices for resident's apartments
+    const result = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('MAX(invoice.period)', 'latestMonth')
+      .where('invoice.apartmentId IN (:...apartmentIds)', { apartmentIds })
+      .getRawOne();
+
+    if (!result?.latestMonth) {
+      throw new HttpException(
+        'Không có dữ liệu hóa đơn nào cho căn hộ của cư dân',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const latestMonth = new Date(result.latestMonth);
+    latestMonth.setDate(1);
+    latestMonth.setHours(0, 0, 0, 0);
+
+    // Calculate 6 months back from latest month
+    const sixMonthsData: MonthlyReportDataDto[] = [];
+    let totalRevenue6Months = 0;
+    let currentDebt = 0;
+
+    // Generate 6 months of data
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(latestMonth);
+      targetDate.setMonth(targetDate.getMonth() - i);
+
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+      const { start, end } = this.getMonthDateRange(year, month);
+
+      // Get invoices for this month (PAID only for revenue)
+      const paidInvoices = await this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .leftJoinAndSelect(
+          'invoice.invoiceDetails',
+          'detail',
+          'invoice.id = detail.invoiceId',
+        )
+        .leftJoinAndSelect('detail.feeType', 'fee')
+        .where('invoice.apartmentId IN (:...apartmentIds)', { apartmentIds })
+        .andWhere('invoice.period BETWEEN :start AND :end', { start, end })
+        .andWhere('invoice.status = :status', { status: InvoiceStatus.PAID })
+        .getMany();
+
+      // Get all invoices (for unpaid amount)
+      const allInvoices = await this.invoiceRepository
+        .createQueryBuilder('invoice')
+        .where('invoice.apartmentId IN (:...apartmentIds)', { apartmentIds })
+        .andWhere('invoice.period BETWEEN :start AND :end', { start, end })
+        .getMany();
+
+      // Calculate revenue by type
+      let electricityRevenue = 0;
+      let waterRevenue = 0;
+      let managementFeeRevenue = 0;
+
+      paidInvoices.forEach((invoice) => {
+        if (invoice.invoiceDetails) {
+          invoice.invoiceDetails.forEach((detail) => {
+            if (detail.feeType) {
+              if (detail.feeType.name === 'Tiền điện') {
+                electricityRevenue += Number(
+                  detail.totalWithVat || detail.totalPrice,
+                );
+              } else if (detail.feeType.name === 'Tiền nước') {
+                waterRevenue += Number(
+                  detail.totalWithVat || detail.totalPrice,
+                );
+              } else if (
+                detail.feeType.type === FeeType.FIXED_AREA ||
+                detail.feeType.type === FeeType.FIXED_MONTH
+              ) {
+                managementFeeRevenue += Number(
+                  detail.totalWithVat || detail.totalPrice,
+                );
+              }
+            }
+          });
+        }
+      });
+
+      const totalMonthRevenue =
+        electricityRevenue + waterRevenue + managementFeeRevenue;
+
+      // Calculate unpaid amount for this month
+      const unpaidInvoices = allInvoices.filter(
+        (inv) => inv.status === InvoiceStatus.UNPAID,
+      );
+      const unpaidAmount = unpaidInvoices.reduce(
+        (sum, inv) => sum + Number(inv.totalAmount || 0),
+        0,
+      );
+
+      // Paid invoice count
+      const paidCount = paidInvoices.length;
+      const totalCount = allInvoices.length;
+
+      const monthlyData: MonthlyReportDataDto = {
+        month: monthStr,
+        electricityRevenue: Math.round(electricityRevenue),
+        waterRevenue: Math.round(waterRevenue),
+        managementFeeRevenue: Math.round(managementFeeRevenue),
+        totalRevenue: Math.round(totalMonthRevenue),
+        invoiceCount: totalCount,
+        paidInvoiceCount: paidCount,
+        unpaidAmount: Math.round(unpaidAmount),
+      };
+
+      sixMonthsData.push(monthlyData);
+      totalRevenue6Months += totalMonthRevenue;
+      currentDebt += unpaidAmount;
+    }
+
+    const averageMonthlyRevenue =
+      sixMonthsData.length > 0
+        ? Math.round(totalRevenue6Months / sixMonthsData.length)
+        : 0;
+
+    const startMonth = sixMonthsData[0]?.month || '';
+    const endMonth = sixMonthsData[sixMonthsData.length - 1]?.month || '';
+
+    return {
+      data: sixMonthsData,
+      startMonth,
+      endMonth,
+      totalRevenue6Months: Math.round(totalRevenue6Months),
+      averageMonthlyRevenue,
+      currentDebt: Math.round(currentDebt),
+    };
+  }
+
+  /**
+   * Export monthly reports to Excel for a resident
+   */
+  async exportMonthlyReportsToExcelByResident(
+    accountId: number,
+  ): Promise<Buffer> {
+    const reports = await this.getMonthlyReportsByResident(accountId);
+
+    const data: any[][] = [];
+
+    // Add title
+    data.push(['BÁO CÁO DOANH THU 6 THÁNG CỦA CƯ DÂN']);
+    data.push([]);
+
+    // Add summary
+    data.push(['TỔNG HỢP']);
+    data.push(['Tổng doanh thu 6 tháng', reports.totalRevenue6Months]);
+    data.push(['Trung bình doanh thu/tháng', reports.averageMonthlyRevenue]);
+    data.push(['Công nợ hiện tại', reports.currentDebt]);
+    data.push([]);
+
+    // Add detail table header
+    data.push([
+      'THÁNG',
+      'ĐIỆN',
+      'NƯỚC',
+      'PHÍ QL',
+      'TỔNG',
+      'SỐ HÓA ĐƠN',
+      'ĐÃ THANH TOÁN',
+      'CÔNG NỢ',
+    ]);
+
+    // Add detail rows
+    reports.data.forEach((row) => {
+      data.push([
+        row.month,
+        row.electricityRevenue,
+        row.waterRevenue,
+        row.managementFeeRevenue,
+        row.totalRevenue,
+        row.invoiceCount,
+        row.paidInvoiceCount,
+        row.unpaidAmount,
+      ]);
+    });
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 15 }, // Month
+      { wch: 15 }, // Electricity
+      { wch: 15 }, // Water
+      { wch: 15 }, // Management Fee
+      { wch: 15 }, // Total
+      { wch: 15 }, // Invoice Count
+      { wch: 15 }, // Paid Count
+      { wch: 15 }, // Unpaid Amount
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Monthly Reports');
 
     // Write to buffer
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
