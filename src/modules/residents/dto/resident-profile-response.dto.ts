@@ -1,8 +1,69 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { Gender } from '../enums/gender.enum';
+import { ApartmentType } from '../../apartments/enums/apartment-type.enum';
 import { InvoiceListResponseDto } from '../../invoices/dto/invoice-list-response.dto';
 import { PaymentResponseDto } from '../../payments/dto/payment-response.dto';
+
+class BlockInfoDto {
+  @ApiProperty({ example: 1 })
+  @Expose()
+  id: number;
+
+  @ApiProperty({ example: 'A' })
+  @Expose()
+  name: string;
+}
+
+class ApartmentDetailDto {
+  @ApiProperty({ example: 1 })
+  @Expose()
+  id: number;
+
+  @ApiProperty({ example: 'A-12.05' })
+  @Expose()
+  name: string;
+
+  @ApiProperty({ example: 12 })
+  @Expose()
+  floor: number;
+
+  @ApiProperty({ example: 'STUDIO', enum: ApartmentType })
+  @Expose()
+  type: ApartmentType;
+
+  @ApiProperty({ example: 85.5 })
+  @Expose()
+  area: number;
+
+  @ApiProperty({ type: BlockInfoDto })
+  @Expose()
+  @Type(() => BlockInfoDto)
+  block: BlockInfoDto;
+
+  @ApiProperty({ example: true })
+  @Expose()
+  isActive: boolean;
+
+  @ApiProperty()
+  @Expose()
+  @Type(() => Date)
+  createdAt: Date;
+}
+
+class ApartmentWithRelationshipDto {
+  @ApiProperty({ type: ApartmentDetailDto })
+  @Expose()
+  @Type(() => ApartmentDetailDto)
+  apartment: ApartmentDetailDto;
+
+  @ApiProperty({
+    example: 'OWNER',
+    description: 'Relationship of the resident to the apartment',
+  })
+  @Expose()
+  relationship: string;
+}
 
 class BookingProfileDto {
   @ApiProperty({ example: 1 })
@@ -150,6 +211,15 @@ export class ResidentProfileResponseDto {
   })
   @Expose()
   isActive: boolean;
+
+  @ApiProperty({
+    type: [ApartmentWithRelationshipDto],
+    description:
+      'List of apartments managed by this resident with their relationship',
+  })
+  @Expose()
+  @Type(() => ApartmentWithRelationshipDto)
+  apartments: ApartmentWithRelationshipDto[];
 
   @ApiProperty({
     type: [InvoiceListResponseDto],

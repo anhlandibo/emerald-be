@@ -19,6 +19,7 @@ import { Invoice } from '../invoices/entities/invoice.entity';
 import { Booking } from '../bookings/entities/booking.entity';
 import { PaymentTransaction } from '../payments/entities/payment-transaction.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
+import { Apartment } from '../apartments/entities/apartment.entity';
 
 @Injectable()
 export class ResidentsService {
@@ -35,6 +36,8 @@ export class ResidentsService {
     private readonly paymentTransactionRepository: Repository<PaymentTransaction>,
     @InjectRepository(ApartmentResident)
     private readonly apartmentResidentRepository: Repository<ApartmentResident>,
+    @InjectRepository(Apartment)
+    private readonly apartmentRepository: Repository<Apartment>,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
@@ -295,10 +298,32 @@ export class ResidentsService {
       throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
     }
 
-    // Get all apartments for this resident via ApartmentResident table
+    // Get all apartment-resident records for this resident
     const apartmentResidents = await this.apartmentResidentRepository.find({
       where: { residentId: resident.id },
     });
+
+    // Get detailed apartment information with block data
+    const apartments = await Promise.all(
+      apartmentResidents.map(async (ar) => {
+        const apartment = await this.apartmentRepository.findOne({
+          where: { id: ar.apartmentId },
+          relations: ['block'],
+        });
+
+        if (!apartment) {
+          return null;
+        }
+
+        return {
+          apartment,
+          relationship: ar.relationship,
+        };
+      }),
+    );
+
+    // Filter out null apartments (deleted ones)
+    const validApartments = apartments.filter((apt) => apt !== null);
 
     const apartmentIds = apartmentResidents.map((ar) => ar.apartmentId);
 
@@ -326,6 +351,7 @@ export class ResidentsService {
     // Return resident with related data
     return {
       ...resident,
+      apartments: validApartments,
       invoices,
       bookings,
       payments,
