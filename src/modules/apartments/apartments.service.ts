@@ -186,7 +186,7 @@ export class ApartmentsService {
       fullName: ar.resident.fullName,
       gender: this.getGenderLabel(ar.resident.gender),
       phone: ar.resident.phoneNumber,
-      relationship: this.getAllRelationships(),
+      relationship: this.getRelationshipLabel(ar.relationship),
     }));
 
     const hasResidents = apartment.apartmentResidents.length > 1;
