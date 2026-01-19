@@ -32,6 +32,7 @@ import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
 import { VerifyMeterReadingDto } from './dto/verify-meter-reading.dto';
 import { VerifyInvoiceReadingsDto } from './dto/verify-invoice-readings.dto';
+import { DeleteManyInvoicesDto } from './dto/delete-many-invoices.dto';
 import { InvoiceListResponseDto } from './dto/invoice-list-response.dto';
 import { InvoiceDetailResponseDto } from './dto/invoice-detail-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
@@ -273,6 +274,22 @@ export class InvoicesController {
   })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.invoicesService.remove(id);
+  }
+
+  @Post('delete-many')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[ADMIN] Xóa mềm nhiều hóa đơn' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Các hóa đơn đã được xóa thành công',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Không tìm thấy hóa đơn với các ID đã cung cấp',
+  })
+  async removeMany(@Body() deleteManyDto: DeleteManyInvoicesDto) {
+    return this.invoicesService.removeMany(deleteManyDto.ids);
   }
 
   /**

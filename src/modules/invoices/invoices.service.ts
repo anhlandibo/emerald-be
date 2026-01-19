@@ -1,6 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Invoice } from './entities/invoice.entity';
 import { InvoiceDetail } from './entities/invoice-detail.entity';
 import { MeterReading } from './entities/meter-reading.entity';
@@ -1008,5 +1008,30 @@ export class InvoicesService {
     }
 
     await this.invoiceRepository.softDelete(id);
+  }
+
+  /**
+   * [ADMIN] Xóa mềm nhiều hóa đơn
+   */
+  async removeMany(
+    ids: number[],
+  ): Promise<{ message: string; deletedCount: number }> {
+    const invoices = await this.invoiceRepository.find({
+      where: { id: In(ids) },
+    });
+
+    if (invoices.length === 0) {
+      throw new HttpException(
+        'Không tìm thấy hóa đơn với các ID đã cung cấp',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.invoiceRepository.softDelete(ids);
+
+    return {
+      message: 'Xóa hóa đơn thành công',
+      deletedCount: invoices.length,
+    };
   }
 }
