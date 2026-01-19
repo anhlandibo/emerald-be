@@ -7,7 +7,6 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
-  DeleteDateColumn,
 } from 'typeorm';
 import { InvoiceStatus } from '../enums/invoice-status.enum';
 import { Apartment } from '../../apartments/entities/apartment.entity';
@@ -81,6 +80,22 @@ export class Invoice {
   })
   status: InvoiceStatus;
 
+  @Column({
+    type: 'date',
+    nullable: false,
+    default: () => {
+      // Mặc định due date = 15 ngày sau khi tạo
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 15);
+      return dueDate;
+    },
+    name: 'due_date',
+  })
+  dueDate: Date;
+
+  @Column({ type: 'boolean', default: true, name: 'is_active' })
+  isActive: boolean;
+
   @OneToMany(() => InvoiceDetail, (detail) => detail.invoice, { cascade: true })
   invoiceDetails: InvoiceDetail[];
 
@@ -89,7 +104,4 @@ export class Invoice {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt: Date;
 }

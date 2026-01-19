@@ -42,7 +42,8 @@ export class CreateInvoiceAdminDto {
 
   @ApiProperty({
     example: '2024-01-05T10:15:30Z',
-    description: 'Kỳ thanh toán',
+    description:
+      'Kỳ thanh toán (ngày bất kỳ trong tháng). Backend sẽ tự normalize về ngày 1st của tháng đó. Ví dụ: 2024-01-05, 2024-01-15, 2024-01-31 đều sẽ thành 2024-01-01. KHÔNG được là ngày trong tương lai.',
   })
   @IsDateString()
   @IsNotEmpty()

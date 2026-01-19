@@ -28,11 +28,11 @@ export class CreateInvoiceClientDto {
   @IsNotEmpty()
   electricityIndex: number;
 
-  @ApiProperty({
-    example: '2024-01-05T10:15:30Z',
-    description: 'Kỳ thanh toán',
-  })
-  @IsDateString()
-  @IsNotEmpty()
-  period: string;
+  // @ApiProperty({
+  //   example: '2024-01-05T10:15:30Z',
+  //   description: 'Kỳ thanh toán',
+  // })
+  // @IsDateString()
+  // @IsNotEmpty()
+  // period: string;
 }
