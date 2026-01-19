@@ -30,6 +30,7 @@ import { UpdateResidentDto } from './dto/update-resident.dto';
 import { QueryResidentDto } from './dto/query-resident.dto';
 import { ResidentResponseDto } from './dto/resident-response.dto';
 import { ResidentProfileResponseDto } from './dto/resident-profile-response.dto';
+import { ResidentInvoicesDetailResponseDto } from './dto/resident-invoices-detail-response.dto';
 import { DeleteManyResidentsDto } from './dto/delete-many-residents.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
@@ -111,6 +112,31 @@ export class ResidentsController {
   async getMyProfile(@CurrentUser('id') accountId: number) {
     const profile = await this.residentsService.getMyProfile(accountId);
     return plainToInstance(ResidentProfileResponseDto, profile);
+  }
+
+  @Get('me/invoices')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get invoices and payment transactions for current resident',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Invoices and payments retrieved successfully',
+    type: ResidentInvoicesDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Resident not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  async getMyInvoices(@CurrentUser('id') accountId: number) {
+    const result = await this.residentsService.getMyInvoices(accountId);
+    return plainToInstance(ResidentInvoicesDetailResponseDto, result);
   }
 
   @Get(':id')

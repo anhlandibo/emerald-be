@@ -325,17 +325,6 @@ export class ResidentsService {
     // Filter out null apartments (deleted ones)
     const validApartments = apartments.filter((apt) => apt !== null);
 
-    const apartmentIds = apartmentResidents.map((ar) => ar.apartmentId);
-
-    // Get invoices for all apartments
-    const invoices =
-      apartmentIds.length > 0
-        ? await this.invoiceRepository.find({
-            where: { apartmentId: In(apartmentIds) },
-            order: { createdAt: 'DESC' },
-          })
-        : [];
-
     // Get bookings for this resident
     const bookings = await this.bookingRepository.find({
       where: { residentId: resident.id },
@@ -348,12 +337,54 @@ export class ResidentsService {
       order: { createdAt: 'DESC' },
     });
 
-    // Return resident with related data
+    // Return resident with related data (without invoices)
     return {
       ...resident,
       apartments: validApartments,
-      invoices,
       bookings,
+      payments,
+    };
+  }
+
+  /**
+   * Get invoices and payment transactions for current resident's apartments
+   */
+  async getMyInvoices(accountId: number) {
+    // Find resident by account ID
+    const resident = await this.residentRepository.findOne({
+      where: { accountId, isActive: true },
+    });
+
+    if (!resident) {
+      throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Get all apartment-resident records for this resident
+    const apartmentResidents = await this.apartmentResidentRepository.find({
+      where: { residentId: resident.id },
+    });
+
+    const apartmentIds = apartmentResidents.map((ar) => ar.apartmentId);
+
+    // Get invoices for all apartments
+    const invoices =
+      apartmentIds.length > 0
+        ? await this.invoiceRepository.find({
+            where: { apartmentId: In(apartmentIds) },
+            relations: ['apartment'],
+            order: { createdAt: 'DESC' },
+          })
+        : [];
+
+    // Get payment transactions for this resident (by accountId)
+    const payments = await this.paymentTransactionRepository.find({
+      where: { accountId },
+      order: { createdAt: 'DESC' },
+    });
+
+    // Return invoices and payments together
+    return {
+      invoices,
       payments,
     };
   }
