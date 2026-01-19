@@ -2,7 +2,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { Gender } from '../enums/gender.enum';
 import { ApartmentType } from '../../apartments/enums/apartment-type.enum';
-import { InvoiceListResponseDto } from '../../invoices/dto/invoice-list-response.dto';
 import { PaymentResponseDto } from '../../payments/dto/payment-response.dto';
 
 class BlockInfoDto {
@@ -220,14 +219,6 @@ export class ResidentProfileResponseDto {
   @Expose()
   @Type(() => ApartmentWithRelationshipDto)
   apartments: ApartmentWithRelationshipDto[];
-
-  @ApiProperty({
-    type: [InvoiceListResponseDto],
-    description: 'List of invoices for all apartments of this resident',
-  })
-  @Expose()
-  @Type(() => InvoiceListResponseDto)
-  invoices: InvoiceListResponseDto[];
 
   @ApiProperty({
     type: [BookingProfileDto],
