@@ -4,6 +4,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { SummarizeResponseDto } from './dtos/summarize-response.dto';
 import { OcrResponseDto } from './dtos/ocr-response.dto';
+import { CCCDResponseDto } from './dtos/cccd-response.dto';
 
 @Injectable()
 export class AiService {
@@ -99,6 +100,84 @@ export class AiService {
       return response.data;
     } catch (error) {
       return this.handleAiServiceError(error);
+    }
+  }
+
+  async readCccdImage(file: Express.Multer.File): Promise<CCCDResponseDto> {
+    // Validate file
+    if (!file) {
+      throw new HttpException(
+        'Vui lòng tải lên ảnh CCCD',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new HttpException(
+        'Chỉ chấp nhận file ảnh (jpg, png). Vui lòng kiểm tra lại định dạng file.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (file.size === 0) {
+      throw new HttpException(
+        'File ảnh rỗng hoặc bị lỗi',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      // Prepare FormData to send to Python API
+      const formData = new FormData();
+      const blob = new Blob([Buffer.from(file.buffer)], {
+        type: file.mimetype,
+      });
+      formData.append('file', blob, file.originalname);
+
+      console.log(
+        `[CCCD Service] Sending image to Python API: ${this.aiServiceUrl}/api/v1/ocr/read-cccd`,
+      );
+
+      // Call Python API endpoint
+      const response = await firstValueFrom(
+        this.httpService.post<CCCDResponseDto>(
+          `${this.aiServiceUrl}/api/v1/ocr/read-cccd`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            timeout: 30000, // 30 second timeout for YOLO + OCR + LLM processing
+          },
+        ),
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('[CCCD Service] Error calling Python API:', error);
+
+      if (error.response) {
+        // Python API returned error response
+        const pythonError = error.response.data;
+        throw new HttpException(
+          pythonError.detail ||
+            'Không thể xử lý ảnh CCCD. Vui lòng kiểm tra chất lượng ảnh.',
+          error.response.status || HttpStatus.BAD_REQUEST,
+        );
+      } else if (error.code === 'ECONNREFUSED') {
+        // Python API not running
+        throw new HttpException(
+          'Dịch vụ CCCD OCR hiện không khả dụng. Vui lòng thử lại sau.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      } else {
+        // Other errors
+        throw new HttpException(
+          'Lỗi server khi xử lý CCCD: ' + (error.message || 'Unknown error'),
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
     }
   }
 
