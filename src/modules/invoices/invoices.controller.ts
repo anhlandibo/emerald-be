@@ -163,6 +163,24 @@ export class InvoicesController {
     });
   }
 
+  @Get('client-created/list')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '[ADMIN] Lấy danh sách hóa đơn được tạo bởi khách hàng',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Danh sách hóa đơn được tạo bởi khách hàng',
+    type: [InvoiceListResponseDto],
+  })
+  async findClientCreatedInvoices(@Query() queryDto: QueryInvoiceDto) {
+    const invoices =
+      await this.invoicesService.findClientCreatedInvoices(queryDto);
+    return plainToInstance(InvoiceListResponseDto, invoices, {
+      excludeExtraneousValues: true,
+    });
+  }
+
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Lấy chi tiết hóa đơn' })
