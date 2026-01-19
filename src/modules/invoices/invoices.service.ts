@@ -1,6 +1,7 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Between } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Invoice } from './entities/invoice.entity';
 import { InvoiceDetail } from './entities/invoice-detail.entity';
 import { MeterReading } from './entities/meter-reading.entity';
@@ -51,6 +52,54 @@ export class InvoicesService {
     const vatAmount = Number(((amount * this.VAT_RATE) / 100).toFixed(2));
     const totalWithVat = Number((amount + vatAmount).toFixed(2));
     return { vatAmount, totalWithVat };
+  }
+
+  /**
+   * Normalize periodDate về đầu tháng (1st of month)
+   * Đảm bảo rằng dù frontend truyền 2024-01-01, 2024-01-15 hay 2024-01-31
+   * thì đều được normalize thành 2024-01-01 (đầu tháng)
+   *
+   * Business Logic: 1 căn hộ chỉ có 1 hóa đơn per tháng
+   */
+  private normalizePeriodDate(period: string | Date): Date {
+    const date = typeof period === 'string' ? new Date(period) : period;
+
+    // Normalize về đầu tháng
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
+    return new Date(year, month, 1);
+  }
+
+  /**
+   * Calculate due date (mặc định 15 ngày sau ngày tạo)
+   * @param createdDate - ngày tạo hóa đơn
+   * @param dueDays - số ngày để thanh toán (default: 15)
+   */
+  private calculateDueDate(createdDate: Date, dueDays: number = 15): Date {
+    const dueDate = new Date(createdDate);
+    dueDate.setDate(dueDate.getDate() + dueDays);
+    return dueDate;
+  }
+
+  /**
+   * Check nếu invoice đã quá hạn (OVERDUE)
+   * @param dueDate - ngày hết hạn
+   * @param status - trạng thái hiện tại
+   */
+  private isInvoiceOverdue(dueDate: Date, status: InvoiceStatus): boolean {
+    // Chỉ có thể overdue nếu hiện tại là UNPAID
+    if (status !== InvoiceStatus.UNPAID) {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const dueDateOnly = new Date(dueDate);
+    dueDateOnly.setHours(0, 0, 0, 0);
+
+    return today > dueDateOnly;
   }
 
   /**
@@ -413,7 +462,26 @@ export class InvoicesService {
     const { apartmentId, waterIndex, electricityIndex, period } =
       createInvoiceDto;
 
-    const periodDate = new Date(period);
+    // Validate: period không được là tương lai
+    const inputDate = new Date(period);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    inputDate.setHours(0, 0, 0, 0);
+
+    if (inputDate > today) {
+      throw new HttpException(
+        'Kỳ thanh toán không được là ngày trong tương lai',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Normalize period về đầu tháng (1st of month)
+    const periodDate = this.normalizePeriodDate(period);
+
+    // Debug log
+    console.log(
+      `📌 [ADMIN] Creating invoice - Input period: ${period} -> Normalized: ${periodDate.toISOString()}`,
+    );
 
     // Kiểm tra apartment tồn tại
     const apartment = await this.apartmentRepository.findOne({
@@ -425,16 +493,24 @@ export class InvoicesService {
     }
 
     // Kiểm tra đã tồn tại hóa đơn cho kỳ này chưa
+    // IMPORTANT: Dùng BETWEEN để check toàn bộ tháng (từ 1/1 đến 31/1)
+    // Tránh tình trạng: 2024-01-01, 2024-01-15, 2024-01-31 tạo 3 invoices
+    const yearStart = periodDate.getFullYear();
+    const monthStart = periodDate.getMonth();
+    const monthStart_Date = new Date(yearStart, monthStart, 1);
+    const monthEnd_Date = new Date(yearStart, monthStart + 1, 0);
+
     const existingInvoice = await this.invoiceRepository.findOne({
       where: {
         apartmentId,
-        period: periodDate,
+        period: Between(monthStart_Date, monthEnd_Date),
+        isActive: true,
       },
     });
 
     if (existingInvoice) {
       throw new HttpException(
-        'Hóa đơn cho kỳ này đã tồn tại',
+        'Hóa đơn cho tháng này đã tồn tại',
         HttpStatus.CONFLICT,
       );
     }
@@ -453,6 +529,10 @@ export class InvoicesService {
     // Tính VAT cho toàn bộ hóa đơn
     const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
 
+    // Tính due date (15 ngày từ ngày tạo)
+    const now = new Date();
+    const dueDate = this.calculateDueDate(now, 15);
+
     // Tạo invoice
     const invoice = this.invoiceRepository.create({
       invoiceCode,
@@ -463,6 +543,7 @@ export class InvoicesService {
       vatAmount,
       totalAmount: totalWithVat,
       status: InvoiceStatus.UNPAID,
+      dueDate,
     });
 
     const savedInvoice = await this.invoiceRepository.save(invoice);
@@ -510,24 +591,32 @@ export class InvoicesService {
     createInvoiceDto: CreateInvoiceClientDto,
     files: Express.Multer.File[],
   ): Promise<Invoice> {
-    const { waterIndex, electricityIndex, period } = createInvoiceDto;
+    const { waterIndex, electricityIndex } = createInvoiceDto;
 
     // Tìm apartment từ resident
     const apartmentId = await this.findApartmentByAccountId(accountId);
 
-    const periodDate = new Date(period);
+    // Normalize period về đầu tháng (1st of month)
+    const periodDate = this.normalizePeriodDate(new Date());
 
     // Kiểm tra đã tồn tại hóa đơn cho kỳ này chưa
+    // IMPORTANT: Dùng BETWEEN để check toàn bộ tháng (từ 1/1 đến 31/1)
+    const yearStart = periodDate.getFullYear();
+    const monthStart = periodDate.getMonth();
+    const monthStart_Date = new Date(yearStart, monthStart, 1);
+    const monthEnd_Date = new Date(yearStart, monthStart + 1, 0);
+
     const existingInvoice = await this.invoiceRepository.findOne({
       where: {
         apartmentId,
-        period: periodDate,
+        period: Between(monthStart_Date, monthEnd_Date),
+        isActive: true,
       },
     });
 
     if (existingInvoice) {
       throw new HttpException(
-        'Hóa đơn cho kỳ này đã tồn tại',
+        'Hóa đơn cho tháng này đã tồn tại',
         HttpStatus.CONFLICT,
       );
     }
@@ -558,6 +647,10 @@ export class InvoicesService {
     // Tính VAT cho toàn bộ hóa đơn
     const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
 
+    // Tính due date (15 ngày từ ngày tạo)
+    const now = new Date();
+    const dueDate = this.calculateDueDate(now, 15);
+
     // Tạo invoice
     const invoice = this.invoiceRepository.create({
       invoiceCode,
@@ -568,6 +661,7 @@ export class InvoicesService {
       vatAmount,
       totalAmount: totalWithVat,
       status: InvoiceStatus.UNPAID,
+      dueDate,
     });
 
     const savedInvoice = await this.invoiceRepository.save(invoice);
@@ -626,7 +720,26 @@ export class InvoicesService {
     const { apartmentId, waterIndex, electricityIndex, period } =
       updateInvoiceDto;
 
-    const periodDate = new Date(period);
+    // Validate: period không được là tương lai
+    const inputDate = new Date(period);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    inputDate.setHours(0, 0, 0, 0);
+
+    if (inputDate > today) {
+      throw new HttpException(
+        'Kỳ thanh toán không được là ngày trong tương lai',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Normalize period về đầu tháng (1st of month)
+    const periodDate = this.normalizePeriodDate(period);
+
+    // Debug log
+    console.log(
+      `📌 [ADMIN] Updating invoice - Input period: ${period} -> Normalized: ${periodDate.toISOString()}`,
+    );
 
     // Xóa các invoice details cũ
     await this.invoiceDetailRepository.delete({ invoiceId: id });
@@ -700,6 +813,7 @@ export class InvoicesService {
     const query = this.invoiceRepository
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.apartment', 'apartment')
+      .where('invoice.isActive = :isActive', { isActive: true })
       .skip((page - 1) * limit)
       .take(limit)
       .orderBy('invoice.createdAt', 'DESC');
@@ -745,6 +859,7 @@ export class InvoicesService {
         'mr',
         'mr.apartment_id = invoice.apartment_id AND mr.billing_month = invoice.period AND mr.image_proof_url IS NOT NULL',
       )
+      .where('invoice.isActive = :isActive', { isActive: true })
       .skip((page - 1) * limit)
       .take(limit)
       .orderBy('invoice.createdAt', 'DESC')
@@ -1053,7 +1168,7 @@ export class InvoicesService {
       throw new HttpException('Không tìm thấy hóa đơn', HttpStatus.NOT_FOUND);
     }
 
-    await this.invoiceRepository.softDelete(id);
+    await this.invoiceRepository.update(id, { isActive: false });
   }
 
   /**
@@ -1073,11 +1188,51 @@ export class InvoicesService {
       );
     }
 
-    await this.invoiceRepository.softDelete(ids);
+    await this.invoiceRepository.update(ids, { isActive: false });
 
     return {
       message: 'Xóa hóa đơn thành công',
       deletedCount: invoices.length,
     };
+  }
+
+  /**
+   * [CRON] Cập nhật invoices quá hạn về OVERDUE status
+   * Chạy hàng ngày lúc 00:00 (nửa đêm)
+   * Logic: Nếu dueDate < hôm nay AND status = UNPAID → UPDATE thành OVERDUE
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async updateOverdueInvoices(): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    try {
+      // Find all UNPAID invoices with dueDate < today
+      const overdueInvoices = await this.invoiceRepository.find({
+        where: {
+          status: InvoiceStatus.UNPAID,
+          dueDate: Between(
+            new Date('2000-01-01'),
+            new Date(today.getTime() - 1),
+          ),
+          isActive: true,
+        },
+      });
+
+      if (overdueInvoices.length === 0) {
+        console.log('No overdue invoices to update');
+        return;
+      }
+
+      // Update invoices to OVERDUE status
+      const overdueIds = overdueInvoices.map((inv) => inv.id);
+      await this.invoiceRepository.update(overdueIds, {
+        status: InvoiceStatus.OVERDUE,
+      });
+
+      console.log(`✅ Updated ${overdueIds.length} invoices to OVERDUE status`);
+    } catch (error) {
+      console.error('❌ Error updating overdue invoices:', error);
+    }
   }
 }

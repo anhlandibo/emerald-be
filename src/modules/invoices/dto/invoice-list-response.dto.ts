@@ -38,6 +38,14 @@ export class InvoiceListResponseDto {
   @Expose()
   status: InvoiceStatus;
 
+  @ApiProperty({
+    example: '2024-01-16',
+    description: 'Payment deadline - thời hạn thanh toán',
+  })
+  @Expose()
+  @Type(() => Date)
+  dueDate: Date;
+
   @ApiProperty({ example: '2024-01-05T10:15:30Z' })
   @Expose()
   @Type(() => Date)

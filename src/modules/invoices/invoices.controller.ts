@@ -47,7 +47,7 @@ import { Invoice } from './entities/invoice.entity';
 @ApiTags('Invoices')
 @Controller('invoices')
 @UseInterceptors(ClassSerializerInterceptor, TransformInterceptor)
-//@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
@@ -55,7 +55,11 @@ export class InvoicesController {
   @Post('admin')
   @HttpCode(HttpStatus.CREATED)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: '[ADMIN] Tạo hóa đơn mới' })
+  @ApiOperation({
+    summary: '[ADMIN] Tạo hóa đơn mới',
+    description:
+      'Tạo hóa đơn cho căn hộ. Period sẽ được normalize về ngày 1st của tháng (vd: 2024-01-05 → 2024-01-01)',
+  })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Hóa đơn được tạo thành công',
@@ -68,6 +72,10 @@ export class InvoicesController {
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Không tìm thấy căn hộ hoặc cấu hình phí',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Kỳ thanh toán không được là ngày trong tương lai',
   })
   async createByAdmin(@Body() createInvoiceDto: CreateInvoiceAdminDto) {
     const invoice =
@@ -95,12 +103,6 @@ export class InvoicesController {
           type: 'number',
           example: 200,
           description: 'Chỉ số điện mới',
-        },
-        period: {
-          type: 'string',
-          format: 'date-time',
-          example: '2024-01-05T10:15:30Z',
-          description: 'Kỳ thanh toán',
         },
         waterImage: {
           type: 'string',
