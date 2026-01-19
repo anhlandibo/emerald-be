@@ -729,6 +729,52 @@ export class InvoicesService {
   }
 
   /**
+   * Get invoices created by clients (with image proof)
+   * Filter by apartments and pagination
+   */
+  async findClientCreatedInvoices(
+    queryDto: QueryInvoiceDto,
+  ): Promise<Invoice[]> {
+    const { page = 1, limit = 10, apartmentId, status, period } = queryDto;
+
+    const query = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.apartment', 'apartment')
+      .innerJoinAndSelect(
+        'meter_readings',
+        'mr',
+        'mr.apartment_id = invoice.apartment_id AND mr.billing_month = invoice.period AND mr.image_proof_url IS NOT NULL',
+      )
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('invoice.createdAt', 'DESC')
+      .distinct(true);
+
+    if (apartmentId) {
+      query.andWhere('invoice.apartmentId = :apartmentId', { apartmentId });
+    }
+
+    if (status) {
+      query.andWhere('invoice.status = :status', { status });
+    }
+
+    if (period) {
+      const periodDate = new Date(period);
+      const year = periodDate.getFullYear();
+      const month = periodDate.getMonth();
+      const startDate = new Date(year, month, 1);
+      const endDate = new Date(year, month + 1, 0);
+
+      query.andWhere('invoice.period BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    }
+
+    return query.getMany();
+  }
+
+  /**
    * Lấy chi tiết 1 hóa đơn
    */
   async findOne(id: number): Promise<Invoice> {
