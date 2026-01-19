@@ -15,6 +15,7 @@ import { AiService } from './ai.service';
 import { SummarizeDto } from './dtos/summarize.dto';
 import { SummarizeResponseDto } from './dtos/summarize-response.dto';
 import { OcrResponseDto } from './dtos/ocr-response.dto';
+import { CCCDResponseDto } from './dtos/cccd-response.dto';
 import { ApiDoc } from 'src/decorators/api-doc.decorator';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
@@ -122,5 +123,53 @@ export class AiController {
     @UploadedFile() file: Express.Multer.File,
   ): Promise<OcrResponseDto> {
     return this.aiService.readMeter(file);
+  }
+
+  @Post('ocr/read-cccd')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary: 'Đọc thông tin Căn cước công dân (CCCD) từ ảnh',
+    description:
+      'Upload ảnh CCCD để trích xuất thông tin cá nhân, số CCCD, ngày sinh, địa chỉ, v.v. Sử dụng YOLOv8 + PaddleOCR + Groq LLM để xử lý.',
+    auth: true,
+  })
+  @ApiBody({
+    description: 'File ảnh CCCD',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'File ảnh CCCD (jpg, png)',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Trích xuất thông tin CCCD thành công',
+    type: CCCDResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'File ảnh không hợp lệ hoặc không thể trích xuất',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    description: 'CCCD OCR Service không khả dụng',
+  })
+  async readCccd(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<CCCDResponseDto> {
+    return this.aiService.readCccdImage(file);
   }
 }
