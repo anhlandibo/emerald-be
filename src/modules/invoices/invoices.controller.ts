@@ -35,6 +35,7 @@ import { VerifyInvoiceReadingsDto } from './dto/verify-invoice-readings.dto';
 import { DeleteManyInvoicesDto } from './dto/delete-many-invoices.dto';
 import { InvoiceListResponseDto } from './dto/invoice-list-response.dto';
 import { InvoiceDetailResponseDto } from './dto/invoice-detail-response.dto';
+import { ClientCreatedInvoiceResponseDto } from './dto/client-created-invoice-response.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -168,17 +169,20 @@ export class InvoicesController {
   @Get('client-created/list')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: '[ADMIN] Lấy danh sách hóa đơn được tạo bởi khách hàng',
+    summary:
+      '[ADMIN] Lấy danh sách hóa đơn được tạo bởi khách hàng (kèm chỉ số meter)',
+    description:
+      'Lấy danh sách invoices được tạo từ meter readings có ảnh chứng minh. Bao gồm thông tin chỉ số cũ, chỉ số mới, lượng sử dụng cho mỗi loại phí.',
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Danh sách hóa đơn được tạo bởi khách hàng',
-    type: [InvoiceListResponseDto],
+    description: 'Danh sách hóa đơn được tạo bởi khách hàng kèm meter readings',
+    type: [ClientCreatedInvoiceResponseDto],
   })
   async findClientCreatedInvoices(@Query() queryDto: QueryInvoiceDto) {
     const invoices =
       await this.invoicesService.findClientCreatedInvoices(queryDto);
-    return plainToInstance(InvoiceListResponseDto, invoices, {
+    return plainToInstance(ClientCreatedInvoiceResponseDto, invoices, {
       excludeExtraneousValues: true,
     });
   }
