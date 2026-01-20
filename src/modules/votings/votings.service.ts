@@ -915,6 +915,7 @@ export class VotingsService {
           content: voting.content,
           startTime: voting.startTime,
           endTime: voting.endTime,
+          createdAt: voting.createdAt,
           isRequired: voting.isRequired,
           status: this.getVotingStatus(voting),
           targetScope: voting.targetScope,
