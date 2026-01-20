@@ -319,16 +319,17 @@ export class InvoicesController {
   /**
    * Helper method to transform invoice to detail response
    */
-  private transformInvoiceDetail(invoice: Invoice): InvoiceDetailResponseDto {
-    const invoiceWithDetails = invoice as any;
+  private transformInvoiceDetail(invoice: any): InvoiceDetailResponseDto {
     const transformed = {
       ...invoice,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
-      invoiceDetails: invoiceWithDetails.invoiceDetails?.map((detail: any) => ({
+      invoiceDetails: invoice.invoiceDetails?.map((detail: any) => ({
         ...detail,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         feeTypeName: detail.feeType?.name,
       })),
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      meterReadings: invoice.meterReadings || [],
     };
 
     return plainToInstance(InvoiceDetailResponseDto, transformed, {
