@@ -22,7 +22,4 @@ export class AuthResponseDto {
 
   @ApiProperty({ description: 'Access token - expires in 15 minutes' })
   accessToken: string;
-
-  @ApiProperty({ description: 'Refresh token - expires in 7 days' })
-  refreshToken: string;
 }

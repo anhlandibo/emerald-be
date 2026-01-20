@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AccountsService } from '../../accounts/accounts.service';
+import { Request } from 'express';
 
 export interface RefreshTokenPayload {
   sub: number;
@@ -26,7 +28,10 @@ export class RefreshTokenStrategy extends PassportStrategy(
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Extract refresh token from cookies instead of Authorization header
+      jwtFromRequest: (req: Request) => {
+        return req.cookies?.refreshToken || null;
+      },
       ignoreExpiration: false,
       secretOrKey: secret,
     });

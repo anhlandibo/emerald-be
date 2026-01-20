@@ -2,9 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable cookie parser middleware (MUST be before passport)
+  // This allows RefreshTokenStrategy to read cookies via req.cookies
+  app.use(cookieParser());
 
   // Global validation pipe
   app.useGlobalPipes(

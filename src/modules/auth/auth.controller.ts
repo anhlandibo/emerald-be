@@ -9,6 +9,7 @@ import {
   Get,
   ClassSerializerInterceptor,
   UseInterceptors,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,7 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -24,7 +25,7 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { AuthResponseDto } from './dto/auth-response.dto';
-import { AuthTokensDto } from './dto/auth-tokens.dto';
+import { AccessTokenDto } from './dto/access-token.dto';
 import { Account } from '../accounts/entities/account.entity';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 
@@ -37,14 +38,36 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login' })
+  @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful',
+    description:
+      'Login successful. Access token in response, refresh token in HttpOnly cookie.',
     type: AuthResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Incorrect email or password' })
-  login(@Body() loginDto: LoginDto, @Req() req: Request & { user: Account }) {
+  login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request & { user: Account },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken } = this.authService.generateTokens(
+      req.user,
+    );
+
+    // Set refresh token in HttpOnly cookie
+    // httpOnly: true - prevents XSS attacks (JavaScript cannot access)
+    // secure: true - only sent over HTTPS in production
+    // sameSite: 'strict' - prevents CSRF attacks
+    // maxAge: 7 days (604800000 ms)
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Return user profile + access token only (no refresh token)
     return this.authService.login(req.user);
   }
 
@@ -53,20 +76,38 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Refresh access token',
+    summary: 'Refresh access token using refresh token from cookie',
     description:
-      'Use refresh token to get a new pair of access token and refresh token',
+      'Refresh token is automatically read from HttpOnly cookie. Returns new access token (refresh token automatically renewed in cookie).',
   })
   @ApiResponse({
     status: 200,
-    description: 'Token refresh successful',
-    type: AuthTokensDto,
+    description:
+      'Token refresh successful. New access token in response, new refresh token in cookie.',
+    type: AccessTokenDto,
   })
-  @ApiResponse({ status: 401, description: 'Invalid refresh token' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refreshTokens(
     @Req() req: Request & { user: { id: number; email: string } },
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.refreshTokens(req.user.id, req.user.email);
+    const tokens = await this.authService.refreshTokens(
+      req.user.id,
+      req.user.email,
+    );
+
+    // Update refresh token in HttpOnly cookie
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Return only access token (refresh token is in cookie)
+    return {
+      accessToken: tokens.accessToken,
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -76,10 +117,17 @@ export class AuthController {
   @ApiOperation({
     summary: 'Logout',
     description:
-      'Client should delete the stored token after calling this endpoint',
+      'Client should delete the stored access token after calling this endpoint. Refresh token cookie is cleared automatically.',
   })
   @ApiResponse({ status: 200, description: 'Logout successful' })
-  logout() {
+  logout(@Res({ passthrough: true }) res: Response) {
+    // Clear refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+
     return { message: 'Logout successful' };
   }
 
