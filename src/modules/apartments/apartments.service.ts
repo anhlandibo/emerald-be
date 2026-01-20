@@ -332,6 +332,13 @@ export class ApartmentsService {
       throw new HttpException('Căn hộ không tồn tại', HttpStatus.NOT_FOUND);
     }
 
+    if (apartment.apartmentResidents.length > 0) {
+      throw new HttpException(
+        'Không thể xóa căn hộ đang có cư dân cư trú. Vui lòng chuyển cư dân đi trước.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     apartment.isActive = false;
     await this.apartmentRepository.save(apartment);
 

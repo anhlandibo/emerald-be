@@ -237,6 +237,17 @@ export class ResidentsService {
   async remove(id: number) {
     const resident = await this.findOne(id);
 
+    const apartmentResidents = await this.apartmentResidentRepository.find({
+      where: { residentId: id },
+    });
+
+    if (apartmentResidents.length > 0) {
+      throw new HttpException(
+        'Không thể xóa cư dân đang là chủ hộ hoặc thành viên. Vui lòng thay đổi chủ hộ/thành viên trước khi xóa.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Soft delete resident
     resident.isActive = false;
     await this.residentRepository.save(resident);
