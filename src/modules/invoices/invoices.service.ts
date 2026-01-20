@@ -849,9 +849,7 @@ export class InvoicesService {
    * Filter by apartments and pagination
    * Returns invoices with meter readings and verification status
    */
-  async findClientCreatedInvoices(
-    queryDto: QueryInvoiceDto,
-  ): Promise<
+  async findClientCreatedInvoices(queryDto: QueryInvoiceDto): Promise<
     (Invoice & {
       meterReadings: MeterReading[];
       meterReadingsVerified: boolean;

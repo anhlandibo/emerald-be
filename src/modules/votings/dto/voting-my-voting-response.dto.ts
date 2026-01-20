@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
 import { ScopeType } from '../../notifications/enums/scope-type.enum';
 import { VotingStatus } from '../enums/voting-status.enum';
+import { Timestamp } from 'typeorm';
 
 class OptionResponseDto {
   @ApiProperty()
@@ -96,4 +97,8 @@ export class VotingMyVotingResponseDto {
   @Expose()
   @Type(() => OptionResponseDto)
   options: OptionResponseDto[];
+
+  @ApiProperty()
+  @Expose()
+  createdAt: Date;
 }
