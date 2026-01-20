@@ -403,6 +403,25 @@ export class ServicesService {
       );
     }
 
+    const activeBookings = await this.bookingRepository.find({
+      where: {
+        serviceId: id,
+        // Assuming booking status enum has COMPLETED, CANCELLED, etc.
+        // Adjust based on your actual enum values
+      },
+    });
+
+    const incompleteBookings = activeBookings.filter(
+      (b) => !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(b.status),
+    );
+
+    if (incompleteBookings.length > 0) {
+      throw new HttpException(
+        `Không thể xóa dịch vụ có ${incompleteBookings.length} booking chưa hoàn thành`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     await this.serviceRepository.update(id, { isActive: false });
     return { message: `Xóa dịch vụ ID ${id} thành công` };
   }
