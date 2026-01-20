@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between } from 'typeorm';
@@ -848,29 +850,29 @@ export class InvoicesService {
    */
   async findClientCreatedInvoices(
     queryDto: QueryInvoiceDto,
-  ): Promise<Invoice[]> {
+  ): Promise<(Invoice & { meterReadings: MeterReading[] })[]> {
     const { page = 1, limit = 10, apartmentId, status, period } = queryDto;
 
-    const query = this.invoiceRepository
+    // Query to get invoice IDs that have client-created meter readings
+    const invoicesQuery = this.invoiceRepository
       .createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.apartment', 'apartment')
-      .innerJoinAndSelect(
+      .select(['invoice.id', 'invoice.createdAt'])
+      .distinct(true)
+      .innerJoin(
         'meter_readings',
         'mr',
         'mr.apartment_id = invoice.apartment_id AND mr.billing_month = invoice.period AND mr.image_proof_url IS NOT NULL',
       )
-      .where('invoice.isActive = :isActive', { isActive: true })
-      .skip((page - 1) * limit)
-      .take(limit)
-      .orderBy('invoice.createdAt', 'DESC')
-      .distinct(true);
+      .where('invoice.isActive = :isActive', { isActive: true });
 
     if (apartmentId) {
-      query.andWhere('invoice.apartmentId = :apartmentId', { apartmentId });
+      invoicesQuery.andWhere('invoice.apartmentId = :apartmentId', {
+        apartmentId,
+      });
     }
 
     if (status) {
-      query.andWhere('invoice.status = :status', { status });
+      invoicesQuery.andWhere('invoice.status = :status', { status });
     }
 
     if (period) {
@@ -880,13 +882,58 @@ export class InvoicesService {
       const startDate = new Date(year, month, 1);
       const endDate = new Date(year, month + 1, 0);
 
-      query.andWhere('invoice.period BETWEEN :startDate AND :endDate', {
+      invoicesQuery.andWhere('invoice.period BETWEEN :startDate AND :endDate', {
         startDate,
         endDate,
       });
     }
 
-    return query.getMany();
+    // Get paginated invoice IDs
+    const paginatedQuery = invoicesQuery
+      .orderBy('invoice.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const invoiceIds = (await paginatedQuery.getRawMany()).map(
+      (row) => row.invoice_id,
+    );
+
+    // If no invoices found, return empty array
+    if (invoiceIds.length === 0) {
+      return [];
+    }
+
+    // Fetch full invoice data with apartment
+    const invoices = await this.invoiceRepository.find({
+      where: { id: In(invoiceIds), isActive: true },
+      relations: ['apartment'],
+      order: { createdAt: 'DESC' },
+    });
+
+    // For each invoice, fetch its meter readings
+    const result: (Invoice & { meterReadings: MeterReading[] })[] = [];
+
+    for (const invoice of invoices) {
+      const meterReadings = await this.meterReadingRepository
+        .createQueryBuilder('mr')
+        .leftJoinAndSelect('mr.feeType', 'feeType')
+        .where('mr.apartmentId = :apartmentId', {
+          apartmentId: invoice.apartmentId,
+        })
+        .andWhere('mr.billingMonth = :billingMonth', {
+          billingMonth: invoice.period,
+        })
+        .andWhere('mr.imageProofUrl IS NOT NULL')
+        .orderBy('mr.createdAt', 'DESC')
+        .getMany();
+
+      result.push({
+        ...invoice,
+        meterReadings,
+      });
+    }
+
+    return result;
   }
 
   /**
