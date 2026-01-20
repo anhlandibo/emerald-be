@@ -949,9 +949,9 @@ export class InvoicesService {
   }
 
   /**
-   * Lấy chi tiết 1 hóa đơn
+   * Lấy chi tiết 1 hóa đơn kèm meter readings
    */
-  async findOne(id: number): Promise<Invoice> {
+  async findOne(id: number): Promise<Invoice & { meterReadings: any[] }> {
     const invoice = await this.invoiceRepository.findOne({
       where: { id },
       relations: ['invoiceDetails', 'invoiceDetails.feeType', 'apartment'],
@@ -961,7 +961,23 @@ export class InvoicesService {
       throw new HttpException('Không tìm thấy hóa đơn', HttpStatus.NOT_FOUND);
     }
 
-    return invoice;
+    // Fetch meter readings for this invoice
+    const meterReadings = await this.meterReadingRepository
+      .createQueryBuilder('mr')
+      .leftJoinAndSelect('mr.feeType', 'feeType')
+      .where('mr.apartmentId = :apartmentId', {
+        apartmentId: invoice.apartmentId,
+      })
+      .andWhere('mr.billingMonth = :billingMonth', {
+        billingMonth: invoice.period,
+      })
+      .orderBy('mr.createdAt', 'DESC')
+      .getMany();
+
+    return {
+      ...invoice,
+      meterReadings,
+    };
   }
 
   /**
