@@ -847,10 +847,16 @@ export class InvoicesService {
   /**
    * Get invoices created by clients (with image proof)
    * Filter by apartments and pagination
+   * Returns invoices with meter readings and verification status
    */
   async findClientCreatedInvoices(
     queryDto: QueryInvoiceDto,
-  ): Promise<(Invoice & { meterReadings: MeterReading[] })[]> {
+  ): Promise<
+    (Invoice & {
+      meterReadings: MeterReading[];
+      meterReadingsVerified: boolean;
+    })[]
+  > {
     const { page = 1, limit = 10, apartmentId, status, period } = queryDto;
 
     // Query to get invoice IDs that have client-created meter readings
@@ -911,7 +917,10 @@ export class InvoicesService {
     });
 
     // For each invoice, fetch its meter readings
-    const result: (Invoice & { meterReadings: MeterReading[] })[] = [];
+    const result: (Invoice & {
+      meterReadings: MeterReading[];
+      meterReadingsVerified: boolean;
+    })[] = [];
 
     for (const invoice of invoices) {
       const meterReadings = await this.meterReadingRepository
@@ -927,9 +936,14 @@ export class InvoicesService {
         .orderBy('mr.createdAt', 'DESC')
         .getMany();
 
+      // Calculate if all meter readings are verified
+      const meterReadingsVerified =
+        meterReadings.length > 0 && meterReadings.every((mr) => mr.isVerified);
+
       result.push({
         ...invoice,
         meterReadings,
+        meterReadingsVerified,
       });
     }
 

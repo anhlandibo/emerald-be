@@ -75,6 +75,14 @@ export class ClientCreatedInvoiceResponseDto {
   @Type(() => MeterReadingResponseDto)
   meterReadings: MeterReadingResponseDto[];
 
+  @ApiProperty({
+    example: true,
+    description:
+      'Tất cả các chỉ số meter có ảnh chứng minh đều đã được admin xác minh hay chưa',
+  })
+  @Expose()
+  meterReadingsVerified: boolean;
+
   @ApiProperty({ example: '2024-01-20T10:15:30Z' })
   @Expose()
   @Type(() => Date)
