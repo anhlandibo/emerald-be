@@ -934,6 +934,28 @@ export class InvoicesService {
         .orderBy('mr.createdAt', 'DESC')
         .getMany();
 
+      // Enrich each meter reading with oldIndexReadingDate
+      for (const mr of meterReadings) {
+        const previousMeterReading = await this.meterReadingRepository
+          .createQueryBuilder('prev_mr')
+          .where('prev_mr.apartmentId = :apartmentId', {
+            apartmentId: invoice.apartmentId,
+          })
+          .andWhere('prev_mr.feeTypeId = :feeTypeId', {
+            feeTypeId: mr.feeTypeId,
+          })
+          .andWhere('prev_mr.billingMonth < :billingMonth', {
+            billingMonth: invoice.period,
+          })
+          .orderBy('prev_mr.billingMonth', 'DESC')
+          .limit(1)
+          .getOne();
+
+        if (previousMeterReading) {
+          (mr as any).oldIndexReadingDate = previousMeterReading.readingDate;
+        }
+      }
+
       // Calculate if all meter readings are verified
       const meterReadingsVerified =
         meterReadings.length > 0 && meterReadings.every((mr) => mr.isVerified);
@@ -973,6 +995,28 @@ export class InvoicesService {
       })
       .orderBy('mr.createdAt', 'DESC')
       .getMany();
+
+    // Enrich each meter reading with oldIndexReadingDate
+    for (const mr of meterReadings) {
+      const previousMeterReading = await this.meterReadingRepository
+        .createQueryBuilder('prev_mr')
+        .where('prev_mr.apartmentId = :apartmentId', {
+          apartmentId: invoice.apartmentId,
+        })
+        .andWhere('prev_mr.feeTypeId = :feeTypeId', {
+          feeTypeId: mr.feeTypeId,
+        })
+        .andWhere('prev_mr.billingMonth < :billingMonth', {
+          billingMonth: invoice.period,
+        })
+        .orderBy('prev_mr.billingMonth', 'DESC')
+        .limit(1)
+        .getOne();
+
+      if (previousMeterReading) {
+        (mr as any).oldIndexReadingDate = previousMeterReading.readingDate;
+      }
+    }
 
     return {
       ...invoice,

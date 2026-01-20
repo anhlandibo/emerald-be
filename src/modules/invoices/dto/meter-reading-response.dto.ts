@@ -49,6 +49,15 @@ export class MeterReadingResponseDto {
   oldIndex: number;
 
   @ApiProperty({
+    example: '2023-12-20',
+    description: 'Ngày ghi chỉ số cũ (lần đọc trước)',
+    required: false,
+  })
+  @Expose()
+  @Type(() => Date)
+  oldIndexReadingDate?: Date;
+
+  @ApiProperty({
     example: 150.75,
     description: 'Chỉ số mới (lần ghi hiện tại)',
   })
