@@ -8,6 +8,10 @@ export class CreateInvoiceClientDto {
     example: 1,
     description: 'ID của căn hộ cử dân muốn tạo hóa đơn',
   })
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @IsNotEmpty()
   apartmentId: number;
