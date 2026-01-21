@@ -95,6 +95,11 @@ export class InvoicesController {
     schema: {
       type: 'object',
       properties: {
+        apartmentId: {
+          type: 'number',
+          example: 1,
+          description: 'ID của căn hộ cử dân muốn tạo hóa đơn',
+        },
         waterIndex: {
           type: 'number',
           example: 100,
@@ -116,13 +121,21 @@ export class InvoicesController {
           description: 'Ảnh chứng minh chỉ số điện',
         },
       },
-      required: ['waterIndex', 'electricityIndex', 'period'],
+      required: ['apartmentId', 'waterIndex', 'electricityIndex'],
     },
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Hóa đơn được tạo thành công',
     type: InvoiceDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Cư dân không sở hữu căn hộ này',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Không tìm thấy cư dân hoặc căn hộ',
   })
   @UseInterceptors(
     FileFieldsInterceptor([

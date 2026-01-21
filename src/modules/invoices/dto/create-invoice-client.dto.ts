@@ -5,6 +5,14 @@ import { Transform } from 'class-transformer';
 
 export class CreateInvoiceClientDto {
   @ApiProperty({
+    example: 1,
+    description: 'ID của căn hộ cử dân muốn tạo hóa đơn',
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  apartmentId: number;
+
+  @ApiProperty({
     example: 100,
     description: 'Chỉ số nước mới',
   })
