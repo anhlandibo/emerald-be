@@ -108,30 +108,6 @@ export class InvoicesService {
   }
 
   /**
-   * Tìm apartment ID từ resident ID (lấy từ token)
-   */
-  async findApartmentByAccountId(accountId: number): Promise<number> {
-    const resident = await this.residentRepository.findOne({
-      where: { accountId },
-    });
-    const apartmentResident = await this.apartmentResidentRepository.findOne({
-      where: { residentId: resident?.id },
-      relations: ['apartment'],
-    });
-    console.log('Resident ID:', resident?.id);
-    console.log('Apartment Resident:', apartmentResident);
-
-    if (!apartmentResident) {
-      throw new HttpException(
-        'Không tìm thấy căn hộ liên kết với cư dân này',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    return apartmentResident.apartmentId;
-  }
-
-  /**
    * Tạo mã hóa đơn duy nhất: INV-YYYYMM-A{apartmentName}
    */
   private async generateInvoiceCode(
@@ -596,10 +572,30 @@ export class InvoicesService {
     createInvoiceDto: CreateInvoiceClientDto,
     files: Express.Multer.File[],
   ): Promise<Invoice> {
-    const { waterIndex, electricityIndex } = createInvoiceDto;
+    const { waterIndex, electricityIndex, apartmentId } = createInvoiceDto;
 
-    // Tìm apartment từ resident
-    const apartmentId = await this.findApartmentByAccountId(accountId);
+    // Xác thực cư dân sở hữu căn hộ này
+    const resident = await this.residentRepository.findOne({
+      where: { accountId },
+    });
+
+    if (!resident) {
+      throw new HttpException('Không tìm thấy cư dân', HttpStatus.NOT_FOUND);
+    }
+
+    const apartmentResident = await this.apartmentResidentRepository.findOne({
+      where: {
+        residentId: resident.id,
+        apartmentId: apartmentId,
+      },
+    });
+
+    if (!apartmentResident) {
+      throw new HttpException(
+        'Cư dân không sở hữu căn hộ này',
+        HttpStatus.FORBIDDEN,
+      );
+    }
 
     // Normalize period về đầu tháng (1st of month)
     const periodDate = this.normalizePeriodDate(new Date());
@@ -937,6 +933,28 @@ export class InvoicesService {
         .orderBy('mr.createdAt', 'DESC')
         .getMany();
 
+      // Enrich each meter reading with oldIndexReadingDate
+      for (const mr of meterReadings) {
+        const previousMeterReading = await this.meterReadingRepository
+          .createQueryBuilder('prev_mr')
+          .where('prev_mr.apartmentId = :apartmentId', {
+            apartmentId: invoice.apartmentId,
+          })
+          .andWhere('prev_mr.feeTypeId = :feeTypeId', {
+            feeTypeId: mr.feeTypeId,
+          })
+          .andWhere('prev_mr.billingMonth < :billingMonth', {
+            billingMonth: invoice.period,
+          })
+          .orderBy('prev_mr.billingMonth', 'DESC')
+          .limit(1)
+          .getOne();
+
+        if (previousMeterReading) {
+          (mr as any).oldIndexReadingDate = previousMeterReading.readingDate;
+        }
+      }
+
       // Calculate if all meter readings are verified
       const meterReadingsVerified =
         meterReadings.length > 0 && meterReadings.every((mr) => mr.isVerified);
@@ -952,9 +970,9 @@ export class InvoicesService {
   }
 
   /**
-   * Lấy chi tiết 1 hóa đơn
+   * Lấy chi tiết 1 hóa đơn kèm meter readings
    */
-  async findOne(id: number): Promise<Invoice> {
+  async findOne(id: number): Promise<Invoice & { meterReadings: any[] }> {
     const invoice = await this.invoiceRepository.findOne({
       where: { id },
       relations: ['invoiceDetails', 'invoiceDetails.feeType', 'apartment'],
@@ -964,7 +982,45 @@ export class InvoicesService {
       throw new HttpException('Không tìm thấy hóa đơn', HttpStatus.NOT_FOUND);
     }
 
-    return invoice;
+    // Fetch meter readings for this invoice
+    const meterReadings = await this.meterReadingRepository
+      .createQueryBuilder('mr')
+      .leftJoinAndSelect('mr.feeType', 'feeType')
+      .where('mr.apartmentId = :apartmentId', {
+        apartmentId: invoice.apartmentId,
+      })
+      .andWhere('mr.billingMonth = :billingMonth', {
+        billingMonth: invoice.period,
+      })
+      .orderBy('mr.createdAt', 'DESC')
+      .getMany();
+
+    // Enrich each meter reading with oldIndexReadingDate
+    for (const mr of meterReadings) {
+      const previousMeterReading = await this.meterReadingRepository
+        .createQueryBuilder('prev_mr')
+        .where('prev_mr.apartmentId = :apartmentId', {
+          apartmentId: invoice.apartmentId,
+        })
+        .andWhere('prev_mr.feeTypeId = :feeTypeId', {
+          feeTypeId: mr.feeTypeId,
+        })
+        .andWhere('prev_mr.billingMonth < :billingMonth', {
+          billingMonth: invoice.period,
+        })
+        .orderBy('prev_mr.billingMonth', 'DESC')
+        .limit(1)
+        .getOne();
+
+      if (previousMeterReading) {
+        (mr as any).oldIndexReadingDate = previousMeterReading.readingDate;
+      }
+    }
+
+    return {
+      ...invoice,
+      meterReadings,
+    };
   }
 
   /**

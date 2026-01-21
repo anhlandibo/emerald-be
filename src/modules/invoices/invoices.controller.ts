@@ -95,6 +95,11 @@ export class InvoicesController {
     schema: {
       type: 'object',
       properties: {
+        apartmentId: {
+          type: 'number',
+          example: 1,
+          description: 'ID của căn hộ cử dân muốn tạo hóa đơn',
+        },
         waterIndex: {
           type: 'number',
           example: 100,
@@ -116,13 +121,21 @@ export class InvoicesController {
           description: 'Ảnh chứng minh chỉ số điện',
         },
       },
-      required: ['waterIndex', 'electricityIndex', 'period'],
+      required: ['apartmentId', 'waterIndex', 'electricityIndex'],
     },
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Hóa đơn được tạo thành công',
     type: InvoiceDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Cư dân không sở hữu căn hộ này',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Không tìm thấy cư dân hoặc căn hộ',
   })
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -319,16 +332,17 @@ export class InvoicesController {
   /**
    * Helper method to transform invoice to detail response
    */
-  private transformInvoiceDetail(invoice: Invoice): InvoiceDetailResponseDto {
-    const invoiceWithDetails = invoice as any;
+  private transformInvoiceDetail(invoice: any): InvoiceDetailResponseDto {
     const transformed = {
       ...invoice,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
-      invoiceDetails: invoiceWithDetails.invoiceDetails?.map((detail: any) => ({
+      invoiceDetails: invoice.invoiceDetails?.map((detail: any) => ({
         ...detail,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         feeTypeName: detail.feeType?.name,
       })),
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      meterReadings: invoice.meterReadings || [],
     };
 
     return plainToInstance(InvoiceDetailResponseDto, transformed, {

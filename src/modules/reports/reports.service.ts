@@ -439,6 +439,8 @@ export class ReportsService {
    * Get 6 months of revenue report data
    */
   async getMonthlyReports(): Promise<MonthlyReportsResponseDto> {
+    console.log('[MONTHLY REPORTS] Starting getMonthlyReports');
+
     // Get the latest month with invoices
     const latestMonth = await this.getLatestInvoiceMonth();
 
@@ -448,6 +450,8 @@ export class ReportsService {
         HttpStatus.NOT_FOUND,
       );
     }
+
+    console.log('[MONTHLY REPORTS] Latest month:', latestMonth);
 
     // Calculate 6 months back from latest month
     const sixMonthsData: MonthlyReportDataDto[] = [];
@@ -465,52 +469,57 @@ export class ReportsService {
 
       const { start, end } = this.getMonthDateRange(year, month);
 
-      // Get invoices for this month (PAID only for revenue)
-      const paidInvoices = await this.invoiceRepository
-        .createQueryBuilder('invoice')
-        .leftJoinAndSelect(
-          'invoice.invoiceDetails',
-          'detail',
-          'invoice.id = detail.invoiceId',
-        )
-        .leftJoinAndSelect('detail.feeType', 'fee')
-        .where('invoice.period BETWEEN :start AND :end', { start, end })
-        .andWhere('invoice.status = :status', { status: InvoiceStatus.PAID })
-        .getMany();
+      console.log(`[MONTHLY REPORTS] Processing month ${monthStr}`);
 
-      // Get all invoices (for unpaid amount)
+      // Get ALL invoices for this month (including paid and unpaid)
       const allInvoices = await this.invoiceRepository
         .createQueryBuilder('invoice')
         .where('invoice.period BETWEEN :start AND :end', { start, end })
         .getMany();
 
-      // Calculate revenue by type
+      console.log(
+        `[MONTHLY REPORTS] ${monthStr}: Found ${allInvoices.length} invoices, IDs: ${allInvoices.map((i) => i.id).join(',')}`,
+      );
+
+      // Get invoice details for ALL invoices in this month
+      const invoiceIds = allInvoices.map((inv) => inv.id);
+      let invoiceDetails: any[] = [];
+
+      if (invoiceIds.length > 0) {
+        invoiceDetails = await this.invoiceDetailRepository
+          .createQueryBuilder('detail')
+          .leftJoinAndSelect('detail.feeType', 'fee')
+          .where('detail.invoiceId IN (:...invoiceIds)', { invoiceIds })
+          .getMany();
+
+        console.log(
+          `[MONTHLY REPORTS] ${monthStr}: Found ${invoiceDetails.length} invoice details`,
+        );
+        invoiceDetails.forEach((d) => {
+          console.log(
+            `[MONTHLY REPORTS] ${monthStr}: Detail invoiceId=${d.invoiceId}, feeType=${d.feeType?.name}, totalWithVat=${d.totalWithVat}, totalPrice=${d.totalPrice}`,
+          );
+        });
+      }
+
+      // Calculate revenue by type from ALL invoice details
       let electricityRevenue = 0;
       let waterRevenue = 0;
       let managementFeeRevenue = 0;
 
-      paidInvoices.forEach((invoice) => {
-        if (invoice.invoiceDetails) {
-          invoice.invoiceDetails.forEach((detail) => {
-            if (detail.feeType) {
-              if (detail.feeType.name === 'Tiền điện') {
-                electricityRevenue += Number(
-                  detail.totalWithVat || detail.totalPrice,
-                );
-              } else if (detail.feeType.name === 'Tiền nước') {
-                waterRevenue += Number(
-                  detail.totalWithVat || detail.totalPrice,
-                );
-              } else if (
-                detail.feeType.type === FeeType.FIXED_AREA ||
-                detail.feeType.type === FeeType.FIXED_MONTH
-              ) {
-                managementFeeRevenue += Number(
-                  detail.totalWithVat || detail.totalPrice,
-                );
-              }
-            }
-          });
+      invoiceDetails.forEach((detail) => {
+        if (detail.feeType) {
+          const amount = Number(detail.totalWithVat || detail.totalPrice || 0);
+          if (detail.feeType.name === 'Tiền điện') {
+            electricityRevenue += amount;
+          } else if (detail.feeType.name === 'Tiền nước') {
+            waterRevenue += amount;
+          } else if (
+            detail.feeType.type === FeeType.FIXED_AREA ||
+            detail.feeType.type === FeeType.FIXED_MONTH
+          ) {
+            managementFeeRevenue += amount;
+          }
         }
       });
 
@@ -526,9 +535,16 @@ export class ReportsService {
         0,
       );
 
-      // Paid invoice count
+      // Invoice counts
+      const paidInvoices = allInvoices.filter(
+        (inv) => inv.status === InvoiceStatus.PAID,
+      );
       const paidCount = paidInvoices.length;
       const totalCount = allInvoices.length;
+
+      console.log(
+        `[MONTHLY REPORTS] ${monthStr}: electricity=${electricityRevenue}, water=${waterRevenue}, management=${managementFeeRevenue}, unpaid=${unpaidAmount}`,
+      );
 
       const monthlyData: MonthlyReportDataDto = {
         month: monthStr,
@@ -774,54 +790,43 @@ export class ReportsService {
 
       const { start, end } = this.getMonthDateRange(year, month);
 
-      // Get invoices for this month (PAID only for revenue)
-      const paidInvoices = await this.invoiceRepository
-        .createQueryBuilder('invoice')
-        .leftJoinAndSelect(
-          'invoice.invoiceDetails',
-          'detail',
-          'invoice.id = detail.invoiceId',
-        )
-        .leftJoinAndSelect('detail.feeType', 'fee')
-        .where('invoice.apartmentId IN (:...apartmentIds)', { apartmentIds })
-        .andWhere('invoice.period BETWEEN :start AND :end', { start, end })
-        .andWhere('invoice.status = :status', { status: InvoiceStatus.PAID })
-        .getMany();
-
-      // Get all invoices (for unpaid amount)
+      // Get ALL invoices for this month (including paid and unpaid)
       const allInvoices = await this.invoiceRepository
         .createQueryBuilder('invoice')
         .where('invoice.apartmentId IN (:...apartmentIds)', { apartmentIds })
         .andWhere('invoice.period BETWEEN :start AND :end', { start, end })
         .getMany();
 
-      // Calculate revenue by type
+      // Get invoice details for ALL invoices in this month
+      const invoiceIds = allInvoices.map((inv) => inv.id);
+      let invoiceDetails: any[] = [];
+
+      if (invoiceIds.length > 0) {
+        invoiceDetails = await this.invoiceDetailRepository
+          .createQueryBuilder('detail')
+          .leftJoinAndSelect('detail.feeType', 'fee')
+          .where('detail.invoiceId IN (:...invoiceIds)', { invoiceIds })
+          .getMany();
+      }
+
+      // Calculate revenue by type from ALL invoice details
       let electricityRevenue = 0;
       let waterRevenue = 0;
       let managementFeeRevenue = 0;
 
-      paidInvoices.forEach((invoice) => {
-        if (invoice.invoiceDetails) {
-          invoice.invoiceDetails.forEach((detail) => {
-            if (detail.feeType) {
-              if (detail.feeType.name === 'Tiền điện') {
-                electricityRevenue += Number(
-                  detail.totalWithVat || detail.totalPrice,
-                );
-              } else if (detail.feeType.name === 'Tiền nước') {
-                waterRevenue += Number(
-                  detail.totalWithVat || detail.totalPrice,
-                );
-              } else if (
-                detail.feeType.type === FeeType.FIXED_AREA ||
-                detail.feeType.type === FeeType.FIXED_MONTH
-              ) {
-                managementFeeRevenue += Number(
-                  detail.totalWithVat || detail.totalPrice,
-                );
-              }
-            }
-          });
+      invoiceDetails.forEach((detail) => {
+        if (detail.feeType) {
+          const amount = Number(detail.totalWithVat || detail.totalPrice || 0);
+          if (detail.feeType.name === 'Tiền điện') {
+            electricityRevenue += amount;
+          } else if (detail.feeType.name === 'Tiền nước') {
+            waterRevenue += amount;
+          } else if (
+            detail.feeType.type === FeeType.FIXED_AREA ||
+            detail.feeType.type === FeeType.FIXED_MONTH
+          ) {
+            managementFeeRevenue += amount;
+          }
         }
       });
 
@@ -837,7 +842,10 @@ export class ReportsService {
         0,
       );
 
-      // Paid invoice count
+      // Invoice counts
+      const paidInvoices = allInvoices.filter(
+        (inv) => inv.status === InvoiceStatus.PAID,
+      );
       const paidCount = paidInvoices.length;
       const totalCount = allInvoices.length;
 
