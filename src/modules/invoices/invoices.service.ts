@@ -105,30 +105,6 @@ export class InvoicesService {
   }
 
   /**
-   * Tìm apartment ID từ resident ID (lấy từ token)
-   */
-  async findApartmentByAccountId(accountId: number): Promise<number> {
-    const resident = await this.residentRepository.findOne({
-      where: { accountId },
-    });
-    const apartmentResident = await this.apartmentResidentRepository.findOne({
-      where: { residentId: resident?.id },
-      relations: ['apartment'],
-    });
-    console.log('Resident ID:', resident?.id);
-    console.log('Apartment Resident:', apartmentResident);
-
-    if (!apartmentResident) {
-      throw new HttpException(
-        'Không tìm thấy căn hộ liên kết với cư dân này',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    return apartmentResident.apartmentId;
-  }
-
-  /**
    * Tạo mã hóa đơn duy nhất: INV-YYYYMM-A{apartmentName}
    */
   private async generateInvoiceCode(
@@ -593,10 +569,30 @@ export class InvoicesService {
     createInvoiceDto: CreateInvoiceClientDto,
     files: Express.Multer.File[],
   ): Promise<Invoice> {
-    const { waterIndex, electricityIndex } = createInvoiceDto;
+    const { waterIndex, electricityIndex, apartmentId } = createInvoiceDto;
 
-    // Tìm apartment từ resident
-    const apartmentId = await this.findApartmentByAccountId(accountId);
+    // Xác thực cư dân sở hữu căn hộ này
+    const resident = await this.residentRepository.findOne({
+      where: { accountId },
+    });
+
+    if (!resident) {
+      throw new HttpException('Không tìm thấy cư dân', HttpStatus.NOT_FOUND);
+    }
+
+    const apartmentResident = await this.apartmentResidentRepository.findOne({
+      where: {
+        residentId: resident.id,
+        apartmentId: apartmentId,
+      },
+    });
+
+    if (!apartmentResident) {
+      throw new HttpException(
+        'Cư dân không sở hữu căn hộ này',
+        HttpStatus.FORBIDDEN,
+      );
+    }
 
     // Normalize period về đầu tháng (1st of month)
     const periodDate = this.normalizePeriodDate(new Date());
