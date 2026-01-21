@@ -2,6 +2,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsDateString, IsNumber } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 
 export class CreateInvoiceClientDto {
   @ApiProperty({
@@ -10,6 +11,7 @@ export class CreateInvoiceClientDto {
   })
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   apartmentId: number;
 
   @ApiProperty({
@@ -22,6 +24,7 @@ export class CreateInvoiceClientDto {
   })
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   waterIndex: number;
 
   @ApiProperty({
@@ -34,6 +37,7 @@ export class CreateInvoiceClientDto {
   })
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   electricityIndex: number;
 
   // @ApiProperty({
