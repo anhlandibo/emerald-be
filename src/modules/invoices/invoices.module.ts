@@ -11,6 +11,7 @@ import { Apartment } from '../apartments/entities/apartment.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { Resident } from '../residents/entities/resident.entity';
+import { SystemNotificationsModule } from '../system-notifications/system-notifications.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { Resident } from '../residents/entities/resident.entity';
       Resident,
     ]),
     CloudinaryModule,
+    SystemNotificationsModule,
   ],
   controllers: [InvoicesController],
   providers: [InvoicesService],
