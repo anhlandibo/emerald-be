@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/require-await */
 import {
   Controller,
   Get,
@@ -11,6 +14,8 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Response,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -193,6 +198,42 @@ export class PaymentsController {
   })
   async momoWebhook(@Body() body: MoMoWebhookDto) {
     return this.paymentsService.handleMoMoWebhook(body);
+  }
+
+  @Get('mobile-callback')
+  @HttpCode(HttpStatus.FOUND)
+  async mobileCallback(@Query() query: any, @Response() res: any) {
+    // VNPay will redirect here with its params in the query string
+    // Extract txnRef from VNPay params
+    const txnRef = query.vnp_TxnRef || query.txnRef;
+    
+    console.log('[Mobile Callback] Received VNPay redirect:', {
+      txnRef,
+      responseCode: query.vnp_ResponseCode,
+      amount: query.vnp_Amount,
+      allParams: Object.keys(query),
+    });
+
+    if (!txnRef) {
+      console.error('[Mobile Callback] ❌ Missing txnRef:', query);
+      // Redirect to error page if no txnRef
+      const errorDeepLink = 'emerald://payment-result?status=failed&source=gateway';
+      return res.redirect(errorDeepLink);
+    }
+
+    // Determine payment status from VNPay response code
+    const responseCode = query.vnp_ResponseCode || '00';
+    const isSuccess = responseCode === '00'; // '00' = thành công
+    const status = isSuccess ? 'processing' : 'failed';
+
+    // Build deep link
+    const deepLink = `emerald://payment-result?txnRef=${encodeURIComponent(txnRef)}&source=gateway&status=${status}`;
+    
+    console.log('[Mobile Callback] ✅ Redirecting to deep link:', deepLink);
+
+    // Return 302 redirect to deep link
+    // This is native browser redirect, ngrok won't block it
+    res.redirect(302, deepLink);
   }
 
   @Get('webhook/vnpay')

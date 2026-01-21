@@ -10,6 +10,9 @@ import { UserNotification } from './entities/user-notification.entity';
 import { Resident } from '../residents/entities/resident.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.module';
+import { MailerModule } from '../mailer/mailer.module';
+import { Account } from '../accounts/entities/account.entity';
+import { Apartment } from '../apartments/entities/apartment.entity';
 
 @Module({
   imports: [
@@ -20,9 +23,12 @@ import { SupabaseStorageModule } from '../supabase-storage/supabase-storage.modu
       UserNotification,
       Resident,
       ApartmentResident,
+      Account,
+      Apartment,
     ]),
     CloudinaryModule,
     SupabaseStorageModule,
+    MailerModule,
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService],

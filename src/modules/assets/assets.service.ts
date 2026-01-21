@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 import {
   Injectable,
   NotFoundException,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -20,6 +22,8 @@ import { TicketHistoryItemDto } from '../maintenance-tickets/dto/ticket-history-
 
 @Injectable()
 export class AssetsService {
+  private readonly logger = new Logger(AssetsService.name);
+
   constructor(
     @InjectRepository(Asset)
     private readonly assetRepository: Repository<Asset>,
@@ -56,26 +60,45 @@ export class AssetsService {
       );
     }
 
+    // Parse installation date properly
+    let installationDate: Date | undefined;
+    if (createAssetDto.installationDate) {
+      const dateStr = createAssetDto.installationDate;
+      
+      // Extract YYYY-MM-DD from ISO string or date string
+      let datePart: string;
+      if (dateStr.includes('T')) {
+        datePart = dateStr.split('T')[0];
+      } else {
+        datePart = dateStr;
+      }
+
+      // Create Date at UTC midnight to preserve the date correctly
+      const [year, month, day] = datePart.split('-').map(Number);
+      installationDate = new Date(Date.UTC(year, month - 1, day));
+    }
+
     // Calculate warranty expiration date if warrantyYears is provided
     let warrantyExpirationDate: Date | undefined;
-    if (createAssetDto.warrantyYears && createAssetDto.installationDate) {
-      const installDate = new Date(createAssetDto.installationDate);
-      warrantyExpirationDate = new Date(installDate);
+    if (createAssetDto.warrantyYears && installationDate) {
+      warrantyExpirationDate = new Date(installationDate);
       warrantyExpirationDate.setFullYear(
-        installDate.getFullYear() + createAssetDto.warrantyYears,
+        installationDate.getFullYear() + createAssetDto.warrantyYears,
       );
     }
 
     // Calculate next maintenance date if maintenanceIntervalMonths is provided
     let nextMaintenanceDate: Date | undefined;
-    if (
-      createAssetDto.maintenanceIntervalMonths &&
-      createAssetDto.installationDate
-    ) {
-      const installDate = new Date(createAssetDto.installationDate);
-      nextMaintenanceDate = new Date(installDate);
+    if (createAssetDto.maintenanceIntervalMonths && installationDate) {
+      nextMaintenanceDate = new Date(installationDate);
       nextMaintenanceDate.setMonth(
-        installDate.getMonth() + createAssetDto.maintenanceIntervalMonths,
+        installationDate.getMonth() + createAssetDto.maintenanceIntervalMonths,
+      );
+    }
+    else {
+      nextMaintenanceDate = new Date(installationDate!);
+      nextMaintenanceDate.setMonth(
+        installationDate!.getMonth() + 6,
       );
     }
 
@@ -86,9 +109,7 @@ export class AssetsService {
       floor: createAssetDto.floor,
       locationDetail: createAssetDto.locationDetail,
       status: createAssetDto.status || AssetStatus.ACTIVE,
-      installationDate: createAssetDto.installationDate
-        ? new Date(createAssetDto.installationDate)
-        : undefined,
+      installationDate,
       warrantyYears: createAssetDto.warrantyYears,
       warrantyExpirationDate,
       maintenanceIntervalMonths: createAssetDto.maintenanceIntervalMonths,
@@ -430,11 +451,43 @@ export class AssetsService {
   }
 
   private formatDate(date: Date | string): string {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // Debug log
+    this.logger.debug(`formatDate input: ${date}, type: ${typeof date}, constructor: ${date?.constructor?.name}`);
+    
+    let dateObj: Date;
+    
+    if (date instanceof Date) {
+      // Already a Date object - use as is
+      dateObj = date;
+      this.logger.debug(`Date object detected, ISO: ${dateObj.toISOString()}`);
+    } else if (typeof date === 'string') {
+      // If it's a UTC ISO string (e.g., "2026-01-20T00:00:00.000Z"), parse it correctly
+      if (date.includes('T')) {
+        // UTC timestamp - extract just the date part before 'T'
+        const datePart = date.split('T')[0];
+        const [year, month, day] = datePart.split('-').map(Number);
+        dateObj = new Date(Date.UTC(year, month - 1, day));
+        this.logger.debug(`ISO string parsed, created UTC date: ${dateObj.toISOString()}`);
+      } else {
+        // Already just YYYY-MM-DD
+        const [year, month, day] = date.split('-').map(Number);
+        dateObj = new Date(Date.UTC(year, month - 1, day));
+        this.logger.debug(`Date string parsed, created UTC date: ${dateObj.toISOString()}`);
+      }
+    } else {
+      // Fallback
+      dateObj = new Date(date);
+      this.logger.debug(`Fallback parsing, result: ${dateObj.toISOString()}`);
+    }
+    
+    // Always use UTC getters since database stores UTC dates
+    const year = dateObj.getUTCFullYear();
+    const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getUTCDate()).padStart(2, '0');
+    const result = `${year}-${month}-${day}`;
+    
+    this.logger.debug(`formatDate output: ${result}, using UTC getters (year=${year}, month=${month}, day=${day})`);
+    return result;
   }
 
   private getFloorDisplay(floor: number): string {

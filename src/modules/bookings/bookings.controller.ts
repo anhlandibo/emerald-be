@@ -24,6 +24,8 @@ import { Resident } from '../residents/entities/resident.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HttpException, HttpStatus as Status } from '@nestjs/common';
+import { PaymentsService } from '../payments/payments.service';
+import { CreatePaymentDto } from '../payments/dto/create-payment.dto';
 
 @ApiTags('Bookings')
 @Controller('bookings')
@@ -31,6 +33,7 @@ import { HttpException, HttpStatus as Status } from '@nestjs/common';
 export class BookingsController {
   constructor(
     private readonly bookingsService: BookingsService,
+    private readonly paymentsService: PaymentsService,
     @InjectRepository(Resident)
     private readonly residentRepository: Repository<Resident>,
   ) {}
@@ -128,5 +131,45 @@ export class BookingsController {
     @CurrentUser('id') accountId: number,
   ): Promise<BookingResponseDto> {
     return this.bookingsService.payBooking(id, payBookingDto, accountId);
+  }
+
+  @Post(':id/payment')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiDoc({
+    summary:
+      'Tạo yêu cầu thanh toán booking qua VNPay/MoMo',
+    description:
+      'Tạo transaction thanh toán cho booking. Trả về payment URL để redirect đến cổng thanh toán.',
+    auth: true,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Booking ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Payment created successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot create payment for this booking',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Booking not found',
+  })
+  async createPaymentForBooking(
+    @Param('id', ParseIntPipe) bookingId: number,
+    @Body() createPaymentDto: CreatePaymentDto,
+    @CurrentUser('id') accountId: number,
+  ) {
+    // Set booking as target for payment
+    return this.paymentsService.createPayment(accountId, {
+      ...createPaymentDto,
+      targetType: 'BOOKING',
+      targetId: bookingId,
+    } as any);
   }
 }

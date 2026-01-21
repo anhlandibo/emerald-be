@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Brackets } from 'typeorm';
@@ -14,18 +15,24 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { ScopeType } from './enums/scope-type.enum';
+import { ChannelType } from './enums/channel-type.enum';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UserNotification } from './entities/user-notification.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { Resident } from '../residents/entities/resident.entity';
+import { Account } from '../accounts/entities/account.entity';
+import { Apartment } from '../apartments/entities/apartment.entity';
+import { SupabaseStorageService } from '../supabase-storage/supabase-storage.service';
+import { MailerService } from '../mailer/mailer.service';
 
 interface NotificationWithStatus extends Notification {
   userStatus?: UserNotification;
 }
-import { SupabaseStorageService } from '../supabase-storage/supabase-storage.service';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
@@ -41,7 +48,12 @@ export class NotificationsService {
     private readonly residentRepository: Repository<Resident>,
     @InjectRepository(ApartmentResident)
     private readonly aptResidentRepository: Repository<ApartmentResident>,
+    @InjectRepository(Account)
+    private readonly accountRepository: Repository<Account>,
+    @InjectRepository(Apartment)
+    private readonly apartmentRepository: Repository<Apartment>,
     private readonly supabaseStorageService: SupabaseStorageService,
+    private readonly mailerService: MailerService,
   ) {}
 
   async create(
@@ -165,8 +177,203 @@ export class NotificationsService {
       await this.targetBlockRepository.save(targetBlocks);
     }
 
+    // Send email notifications if email channel is selected
+    if (
+      createNotificationDto.channels.includes(ChannelType.EMAIL) &&
+      (!createNotificationDto.publishedAt ||
+        new Date(createNotificationDto.publishedAt) <= new Date())
+    ) {
+      this.sendEmailNotification(savedNotification, createNotificationDto).catch(
+        (error) => {
+          this.logger.error(
+            `Failed to send email notification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            error instanceof Error ? error.stack : '',
+          );
+        },
+      );
+    }
+
     // Return notification with relations
     return this.findOne(savedNotification.id);
+  }
+
+  /**
+   * Send email notifications based on the target scope
+   */
+  private async sendEmailNotification(
+    notification: Notification,
+    createDto: CreateNotificationDto,
+  ): Promise<void> {
+    try {
+      let recipients: { email: string; name?: string }[] = [];
+
+      if (createDto.targetScope === ScopeType.ALL) {
+        // Get all active residents
+        recipients = await this.getAllActiveResidentsEmails();
+      } else if (
+        createDto.targetScope === ScopeType.BLOCK &&
+        createDto.targetBlocks
+      ) {
+        // Get residents in target blocks
+        recipients = await this.getResidentsEmailsByBlocks(
+          createDto.targetBlocks,
+        );
+      } else if (
+        createDto.targetScope === ScopeType.FLOOR &&
+        createDto.targetBlocks
+      ) {
+        // Get residents on target floors
+        recipients = await this.getResidentsEmailsByBlocksAndFloors(
+          createDto.targetBlocks,
+        );
+      }
+
+      if (recipients.length === 0) {
+        this.logger.warn(
+          `No recipients found for email notification ID: ${notification.id}`,
+        );
+        return;
+      }
+
+      // Build email HTML content
+      const emailHtml = this.mailerService.buildNotificationEmail(
+        notification.title,
+        notification.content,
+      );
+
+      // Send emails to all recipients
+      const recipientEmails = recipients.map((r) => r.email);
+      const result =
+        await this.mailerService.sendEmailToMultiple(
+          recipientEmails,
+          notification.title,
+          emailHtml,
+        );
+
+      this.logger.log(
+        `Email notification sent. ID: ${notification.id}, Successful: ${result.successful.length}, Failed: ${result.failed.length}`,
+      );
+
+      if (result.failed.length > 0) {
+        this.logger.warn(
+          `Failed to send emails to ${result.failed.length} recipients: ${result.failed.join(', ')}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error in sendEmailNotification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : '',
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active residents' emails
+   */
+  private async getAllActiveResidentsEmails(): Promise<
+    { email: string; name?: string }[]
+  > {
+    const residents = await this.residentRepository.find({
+      where: { isActive: true },
+      relations: ['account'],
+    });
+
+    return residents
+      .filter((r) => r.account && r.account.email)
+      .map((r) => ({
+        email: r.account.email,
+        name: r.fullName,
+      }));
+  }
+
+  /**
+   * Get residents' emails by block IDs
+   */
+  private async getResidentsEmailsByBlocks(
+    targetBlocks: any[],
+  ): Promise<{ email: string; name?: string }[]> {
+    const blockIds = targetBlocks.map((tb) => tb.blockId);
+
+    const apartments = await this.apartmentRepository.find({
+      where: {
+        blockId: In(blockIds),
+        isActive: true,
+      },
+      relations: ['apartmentResidents', 'apartmentResidents.resident'],
+    });
+
+    const recipients: { email: string; name?: string }[] = [];
+    const seenEmails = new Set<string>();
+
+    for (const apartment of apartments) {
+      if (apartment.apartmentResidents) {
+        for (const aptResident of apartment.apartmentResidents) {
+          if (
+            aptResident.resident &&
+            aptResident.resident.isActive &&
+            aptResident.resident.account
+          ) {
+            const email = aptResident.resident.account.email;
+            if (!seenEmails.has(email)) {
+              seenEmails.add(email);
+              recipients.push({
+                email,
+                name: aptResident.resident.fullName,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return recipients;
+  }
+
+  /**
+   * Get residents' emails by specific blocks and floors
+   */
+  private async getResidentsEmailsByBlocksAndFloors(
+    targetBlocks: any[],
+  ): Promise<{ email: string; name?: string }[]> {
+    const recipients: { email: string; name?: string }[] = [];
+    const seenEmails = new Set<string>();
+
+    for (const targetBlock of targetBlocks) {
+      const floors = targetBlock.targetFloorNumbers || [];
+
+      const apartments = await this.apartmentRepository.find({
+        where: {
+          blockId: targetBlock.blockId,
+          isActive: true,
+          ...(floors.length > 0 && { floor: In(floors) }),
+        },
+        relations: ['apartmentResidents', 'apartmentResidents.resident'],
+      });
+
+      for (const apartment of apartments) {
+        if (apartment.apartmentResidents) {
+          for (const aptResident of apartment.apartmentResidents) {
+            if (
+              aptResident.resident &&
+              aptResident.resident.isActive &&
+              aptResident.resident.account
+            ) {
+              const email = aptResident.resident.account.email;
+              if (!seenEmails.has(email)) {
+                seenEmails.add(email);
+                recipients.push({
+                  email,
+                  name: aptResident.resident.fullName,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return recipients;
   }
 
   async findAll(queryNotificationDto: QueryNotificationDto) {

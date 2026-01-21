@@ -989,6 +989,7 @@ export class InvoicesService {
           billingMonth: invoice.period,
         })
         .andWhere('mr.imageProofUrl IS NOT NULL')
+        .andWhere('mr.isVerified = :isVerified', { isVerified: true })
         .orderBy('mr.createdAt', 'DESC')
         .getMany();
 
@@ -1015,8 +1016,7 @@ export class InvoicesService {
       }
 
       // Calculate if all meter readings are verified
-      const meterReadingsVerified =
-        meterReadings.length > 0 && meterReadings.every((mr) => mr.isVerified);
+      const meterReadingsVerified = meterReadings.length > 0;
 
       result.push({
         ...invoice,

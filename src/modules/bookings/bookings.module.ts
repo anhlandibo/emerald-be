@@ -7,6 +7,7 @@ import { BookingPayment } from './entities/booking-payment.entity';
 import { SlotAvailability } from '../services/entities/slot-availability.entity';
 import { Resident } from '../residents/entities/resident.entity';
 import { ServicesModule } from '../services/services.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ServicesModule } from '../services/services.module';
       Resident,
     ]),
     forwardRef(() => ServicesModule),
+    PaymentsModule,
   ],
   controllers: [BookingsController],
   providers: [BookingsService],
