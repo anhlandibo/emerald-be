@@ -326,6 +326,7 @@ export class ApartmentsService {
   async remove(id: number) {
     const apartment = await this.apartmentRepository.findOne({
       where: { id, isActive: true },
+      relations: ['apartmentResidents'],
     });
 
     if (!apartment) {
