@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, IsNull, Not, LessThan } from 'typeorm';
+import { Repository, MoreThan, IsNull, Not, LessThan, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   SystemNotification,
@@ -276,7 +276,22 @@ export class SystemNotificationsService {
       queryBuilder.andWhere('notification.type = :type', { type });
     }
 
-    const [data, total] = await queryBuilder.getManyAndCount();
+    const [rawData, total] = await queryBuilder.getManyAndCount();
+
+    // Transform data to include navigation info
+    const data = rawData.map((userNotif) => ({
+      ...userNotif,
+      notification: userNotif.notification
+        ? {
+            ...userNotif.notification,
+            // Thêm thông tin điều hướng từ actionUrl và metadata
+            navigationPath:
+              userNotif.notification.actionUrl ||
+              this.extractNavigationPath(userNotif.notification),
+            navigationData: userNotif.notification.metadata || {},
+          }
+        : undefined,
+    }));
 
     return {
       data,
@@ -288,6 +303,36 @@ export class SystemNotificationsService {
         currentPage: page,
       },
     };
+  }
+
+  /**
+   * Extract navigation path from notification metadata
+   * Ví dụ: metadata có thể chứa { entityType: 'invoice', entityId: 123 }
+   */
+  private extractNavigationPath(
+    notification: SystemNotification,
+  ): string | null {
+    if (!notification.metadata) return null;
+
+    const { entityType, entityId } = notification.metadata;
+
+    if (!entityType || !entityId) return null;
+
+    // Map entity types to navigation paths
+    const pathMap: Record<string, string> = {
+      invoice: '/invoices',
+      maintenance: '/maintenances',
+      issue: '/issues',
+      voting: '/votings',
+      service: '/services',
+      fee: '/fees',
+      resident: '/residents',
+      apartment: '/apartments',
+      block: '/blocks',
+    };
+
+    const basePath = pathMap[entityType];
+    return basePath ? `${basePath}/${entityId}` : null;
   }
 
   async getUnreadCount(userId: number): Promise<number> {
@@ -470,6 +515,80 @@ export class SystemNotificationsService {
       total,
       unread,
       read,
+    };
+  }
+
+  /**
+   * Soft delete a notification for user
+   */
+  async deleteUserNotification(userId: number, notificationId: number) {
+    const userNotification =
+      await this.systemUserNotificationRepository.findOne({
+        where: {
+          userId,
+          notificationId,
+          isDeleted: false,
+        },
+      });
+
+    if (!userNotification) {
+      throw new HttpException(
+        'Notification not found or already deleted',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.systemUserNotificationRepository.update(
+      { id: userNotification.id },
+      { isDeleted: true, deletedAt: new Date() },
+    );
+
+    return {
+      success: true,
+      message: 'Notification deleted successfully',
+    };
+  }
+
+  /**
+   * Soft delete multiple notifications for user
+   */
+  async deleteMultipleUserNotifications(
+    userId: number,
+    notificationIds: number[],
+  ) {
+    if (!notificationIds || notificationIds.length === 0) {
+      throw new HttpException(
+        'No notification IDs provided',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const userNotifications = await this.systemUserNotificationRepository.find({
+      where: {
+        userId,
+        notificationId: In(notificationIds),
+        isDeleted: false,
+      },
+    });
+
+    if (userNotifications.length === 0) {
+      return {
+        success: true,
+        message: 'No notifications found to delete',
+        count: 0,
+      };
+    }
+
+    const ids = userNotifications.map((un) => un.id);
+    await this.systemUserNotificationRepository.update(
+      { id: In(ids) },
+      { isDeleted: true, deletedAt: new Date() },
+    );
+
+    return {
+      success: true,
+      message: `Deleted ${userNotifications.length} notifications`,
+      count: userNotifications.length,
     };
   }
 }
