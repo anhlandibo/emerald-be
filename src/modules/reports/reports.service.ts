@@ -305,9 +305,9 @@ export class ReportsService {
       chartData.set(dateStr, existing);
     });
 
-    return Array.from(chartData.values())
-      .sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime())
-      .slice(0, 4); // Limit to 4 days for consistency
+    return Array.from(chartData.values()).sort(
+  (a, b) => new Date(a.label).getTime() - new Date(b.label).getTime(),
+);
   }
 
   /**
