@@ -17,4 +17,7 @@ export default new DataSource({
   ssl: {
     rejectUnauthorized: false,
   },
+  extra: {
+    timezone: 'UTC',
+  },
 });

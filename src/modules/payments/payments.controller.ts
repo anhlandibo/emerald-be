@@ -29,6 +29,7 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { CreateBatchPaymentDto } from './dto/create-batch-payment.dto';
 import { CreatePaymentResponseDto } from './dto/create-payment-response.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { MoMoWebhookDto } from './dto/momo-webhook.dto';
@@ -73,6 +74,46 @@ export class PaymentsController {
       accountId,
       createPaymentDto,
     );
+    return plainToInstance(CreatePaymentResponseDto, payment);
+  }
+
+  @Post('batch')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiDoc({
+    summary: 'Tạo link thanh toán batch',
+    description:
+      'Tạo giao dịch thanh toán cho nhiều hóa đơn/booking cùng lúc và nhận link redirect tới MoMo hoặc VNPay',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Batch payment link created successfully',
+    type: CreatePaymentResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input or targets already paid',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Invoices or bookings not found',
+  })
+  async createBatch(
+    @CurrentUser('id') accountId: number,
+    @Body() createBatchPaymentDto: CreateBatchPaymentDto,
+  ) {
+    const { targetType, targetIds, paymentMethod, deviceType, redirectUrl } =
+      createBatchPaymentDto;
+
+    const payment = await this.paymentsService.createBatchPayment(
+      accountId,
+      targetType,
+      targetIds,
+      paymentMethod,
+      deviceType,
+      redirectUrl,
+    );
+
     return plainToInstance(CreatePaymentResponseDto, payment);
   }
 

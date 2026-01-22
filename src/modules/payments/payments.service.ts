@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { PaymentTransaction } from './entities/payment-transaction.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { Booking } from '../bookings/entities/booking.entity';
@@ -227,6 +227,181 @@ export class PaymentsService {
     }
   }
 
+  async createBatchPayment(
+    accountId: number,
+    targetType: PaymentTargetType,
+    targetIds: number[],
+    paymentMethod: PaymentGateway,
+    deviceType?: string,
+    redirectUrl?: string,
+  ) {
+    if (!targetIds || targetIds.length === 0) {
+      throw new BadRequestException('Phải cung cấp ít nhất 1 ID thanh toán');
+    }
+
+    // Validate all targets exist and get total amount
+    let totalAmount = 0;
+    const validTargetIds: number[] = [];
+
+    if (targetType === PaymentTargetType.INVOICE) {
+      const invoices = await this.invoiceRepository.find({
+        where: { id: In(targetIds) },
+        relations: ['apartment'],
+      });
+
+      if (invoices.length === 0) {
+        throw new NotFoundException('Không tìm thấy hóa đơn nào');
+      }
+
+      // Filter out already paid invoices
+      for (const invoice of invoices) {
+        if (invoice.status !== InvoiceStatus.PAID) {
+          totalAmount += Number(invoice.totalAmount);
+          validTargetIds.push(invoice.id);
+        }
+      }
+
+      if (validTargetIds.length === 0) {
+        throw new BadRequestException('Tất cả các hóa đơn đã được thanh toán');
+      }
+    } else if (targetType === PaymentTargetType.BOOKING) {
+      const bookings = await this.bookingRepository.find({
+        where: { id: In(targetIds) },
+        relations: ['service'],
+      });
+
+      if (bookings.length === 0) {
+        throw new NotFoundException('Không tìm thấy booking nào');
+      }
+
+      // Filter out already paid bookings
+      for (const booking of bookings) {
+        if (
+          booking.status !== BookingStatus.PAID &&
+          booking.status !== BookingStatus.COMPLETED
+        ) {
+          totalAmount += Number(booking.totalPrice);
+          validTargetIds.push(booking.id);
+        }
+      }
+
+      if (validTargetIds.length === 0) {
+        throw new BadRequestException(
+          'Tất cả các booking đã được thanh toán hoặc hoàn thành',
+        );
+      }
+    } else {
+      throw new BadRequestException('Loại thanh toán không hợp lệ');
+    }
+
+    // Use first valid ID for transaction creation
+    const primaryTargetId = validTargetIds[0];
+    const batchRef = `BATCH_${targetType}_${Date.now()}`;
+
+    // Generate unique txnRef with batch info
+    const txnRef = `${batchRef}_${primaryTargetId}`;
+
+    // Create single payment transaction for batch
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    const payment = this.paymentRepository.create({
+      txnRef,
+      targetType,
+      targetId: primaryTargetId, // Store first ID
+      accountId,
+      amount: totalAmount,
+      currency: 'VND',
+      paymentMethod,
+      status: PaymentStatus.PENDING,
+      description: `Thanh toan nhieu ${targetType.toLowerCase()} - ${validTargetIds.length} items`,
+      expiresAt,
+      retryCount: 0,
+      // Store all IDs in raw log for webhook handling
+      rawLog: { batchIds: validTargetIds, allTargetIds: validTargetIds },
+    });
+
+    const savedPayment = await this.paymentRepository.save(payment);
+
+    // Generate payment URL based on gateway
+    let paymentUrl: string;
+
+    // Determine redirect URL based on device type
+    let finalRedirectUrl: string;
+    if (redirectUrl && !redirectUrl.startsWith('emerald://')) {
+      finalRedirectUrl = redirectUrl;
+    } else if (
+      deviceType === 'mobile' ||
+      deviceType === 'ios' ||
+      deviceType === 'android'
+    ) {
+      const mobileRedirectUrl = process.env.MOBILE_APP_REDIRECT_URL;
+      if (!mobileRedirectUrl) {
+        throw new BadRequestException(
+          'Mobile app redirect URL not configured. Please contact support.',
+        );
+      }
+      finalRedirectUrl = mobileRedirectUrl;
+    } else {
+      finalRedirectUrl = `${process.env.FRONTEND_URL}/payments/result?source=gateway`;
+    }
+
+    try {
+      if (paymentMethod === PaymentGateway.MOMO) {
+        if (!this.momoService.isAvailable()) {
+          throw new BadRequestException(
+            'Cổng thanh toán MoMo chưa được cấu hình. Vui lòng sử dụng VNPay hoặc liên hệ quản trị viên.',
+          );
+        }
+        const momoResult = await this.momoService.createPayment({
+          orderId: txnRef,
+          amount: totalAmount,
+          orderInfo: `Thanh toan ${validTargetIds.length} items`,
+          redirectUrl: finalRedirectUrl,
+          ipnUrl: `${process.env.BACKEND_URL}/api/v1/payments/webhook/momo`,
+          requestId: `${txnRef}_${Date.now()}`,
+        });
+        paymentUrl = momoResult.payUrl;
+      } else if (paymentMethod === PaymentGateway.VNPAY) {
+        const ipnUrl = `${process.env.BACKEND_URL}/api/v1/payments/webhook/vnpay`;
+        const vnpayResult = this.vnpayService.createPayment({
+          orderId: txnRef,
+          amount: totalAmount,
+          orderInfo: `Thanh toan ${validTargetIds.length} items`,
+          returnUrl: finalRedirectUrl,
+          ipnUrl: ipnUrl,
+          ipAddr: '127.0.0.1',
+        });
+        paymentUrl = vnpayResult.payUrl;
+      } else {
+        throw new BadRequestException('Payment gateway không được hỗ trợ');
+      }
+
+      // Update payment with URL
+      savedPayment.paymentUrl = paymentUrl;
+      await this.paymentRepository.save(savedPayment);
+
+      return {
+        transactionId: savedPayment.id,
+        txnRef: savedPayment.txnRef,
+        paymentUrl,
+        amount: savedPayment.amount,
+        expiresAt: savedPayment.expiresAt,
+        batchIds: validTargetIds,
+        itemCount: validTargetIds.length,
+      };
+    } catch (error) {
+      // Update payment status to FAILED
+      savedPayment.status = PaymentStatus.FAILED;
+      savedPayment.rawLog = { error: error.message };
+      await this.paymentRepository.save(savedPayment);
+
+      throw new HttpException(
+        `Tạo link thanh toán thất bại: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   async findOne(id: number) {
     const payment = await this.paymentRepository.findOne({
       where: { id },
@@ -291,10 +466,13 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
-    // Update payment
+    // Update payment (preserve existing batchIds in rawLog)
     payment.gatewayTxnId = transId;
     payment.gatewayResponseCode = String(resultCode);
-    payment.rawLog = data;
+    payment.rawLog = {
+      ...payment.rawLog,  // Preserve existing batchIds
+      ...data,            // Add webhook response data
+    };
     payment.updatedAt = new Date();
 
     if (resultCode === 0) {
@@ -351,10 +529,13 @@ export class PaymentsService {
       currentStatus: payment.status,
     });
 
-    // Update payment
+    // Update payment (preserve existing batchIds in rawLog)
     payment.gatewayTxnId = vnp_TransactionNo;
     payment.gatewayResponseCode = vnp_ResponseCode;
-    payment.rawLog = data;
+    payment.rawLog = {
+      ...payment.rawLog,  // Preserve existing batchIds
+      ...data,            // Add webhook response data
+    };
     payment.updatedAt = new Date();
 
     if (vnp_ResponseCode === '00') {
@@ -364,12 +545,17 @@ export class PaymentsService {
 
       console.log('[VNPay Webhook] Payment marked SUCCESS:', payment.id);
 
-      // Update target status
+      // Update target status (handles both single and batch)
       await this.updateTargetStatus(payment);
+
+      // Extract batch IDs if available
+      const batchIds = (payment.rawLog as any)?.batchIds;
+      const updatedIds = batchIds || [payment.targetId];
 
       console.log('[VNPay Webhook] Target status updated:', {
         targetType: payment.targetType,
-        targetId: payment.targetId,
+        updatedIds: updatedIds,
+        isBatch: !!batchIds,
       });
     } else {
       payment.status = PaymentStatus.FAILED;
@@ -381,13 +567,31 @@ export class PaymentsService {
   }
 
   private async updateTargetStatus(payment: PaymentTransaction) {
+    // Handle batch payments
+    const batchIds = (payment.rawLog as any)?.batchIds;
+    const targetIds = batchIds || [payment.targetId];
+
+    console.log('[VNPay Webhook] Updating batch IDs:', targetIds);
+
     if (payment.targetType === PaymentTargetType.INVOICE) {
-      await this.invoiceRepository.update(payment.targetId, {
-        status: InvoiceStatus.PAID,
+      // Update all batch invoice IDs
+      const result = await this.invoiceRepository.update(
+        { id: In(targetIds) },
+        { status: InvoiceStatus.PAID },
+      );
+      console.log('[VNPay Webhook] Invoice update result:', {
+        affected: result.affected,
+        ids: targetIds,
       });
     } else if (payment.targetType === PaymentTargetType.BOOKING) {
-      await this.bookingRepository.update(payment.targetId, {
-        status: BookingStatus.PAID,
+      // Update all batch booking IDs
+      const result = await this.bookingRepository.update(
+        { id: In(targetIds) },
+        { status: BookingStatus.PAID },
+      );
+      console.log('[VNPay Webhook] Booking update result:', {
+        affected: result.affected,
+        ids: targetIds,
       });
     }
   }
