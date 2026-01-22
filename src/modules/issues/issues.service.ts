@@ -23,7 +23,7 @@ import { IssueResponseDto } from './dtos/issue-response.dto';
 import { UserRole } from '../accounts/enums/user-role.enum';
 import { SystemNotificationsService } from '../system-notifications/system-notifications.service';
 import { AccountsService } from '../accounts/accounts.service';
-import { SystemNotificationType } from '../system-notifications/enums/system-notification-type.enum';
+import { SystemNotificationType } from 'src/modules/system-notifications/entities/system-notification.entity';
 
 @Injectable()
 export class IssuesService {
