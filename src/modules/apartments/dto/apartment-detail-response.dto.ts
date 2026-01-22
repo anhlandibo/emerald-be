@@ -59,6 +59,10 @@ class ResidentDetailDto {
   @Expose()
   phone: string;
 
+  @ApiProperty({ example: '0123456789' })
+  @Expose()
+  identityCard: string;
+
   @ApiProperty({
     example: [
       { value: 'OWNER', label: 'Chủ nhân' },

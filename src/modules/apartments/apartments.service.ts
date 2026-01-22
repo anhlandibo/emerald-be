@@ -186,6 +186,7 @@ export class ApartmentsService {
       fullName: ar.resident.fullName,
       gender: this.getGenderLabel(ar.resident.gender),
       phone: ar.resident.phoneNumber,
+      identityCard: ar.resident.citizenId,
       relationship: ar.relationship,
     }));
 
