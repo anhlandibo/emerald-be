@@ -134,8 +134,12 @@ export class PaymentsService {
       // VNPay redirects to this HTTP endpoint with all its params included in the URL
       const mobileRedirectUrl = process.env.MOBILE_APP_REDIRECT_URL;
       if (!mobileRedirectUrl) {
-        console.error('[Payment] ❌ ERROR: MOBILE_APP_REDIRECT_URL not set in environment!');
-        console.error('[Payment] Please set MOBILE_APP_REDIRECT_URL to your backend HTTP URL');
+        console.error(
+          '[Payment] ❌ ERROR: MOBILE_APP_REDIRECT_URL not set in environment!',
+        );
+        console.error(
+          '[Payment] Please set MOBILE_APP_REDIRECT_URL to your backend HTTP URL',
+        );
         throw new BadRequestException(
           'Mobile app redirect URL not configured. Please contact support.',
         );
@@ -191,7 +195,10 @@ export class PaymentsService {
         });
         paymentUrl = vnpayResult.payUrl;
         console.log('[Payment] ✅ VNPay payment URL created successfully');
-        console.log('[Payment] Payment URL starts with:', paymentUrl?.substring(0, 100) + '...');
+        console.log(
+          '[Payment] Payment URL starts with:',
+          paymentUrl?.substring(0, 100) + '...',
+        );
       } else {
         throw new BadRequestException('Payment gateway không được hỗ trợ');
       }

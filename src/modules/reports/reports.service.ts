@@ -29,6 +29,30 @@ import {
 } from './dto/monthly-reports.dto';
 import { QueryReportDto } from './dto/query-report.dto';
 
+// Raw query result interfaces for type safety
+interface TotalQueryResult {
+  total: string;
+}
+
+interface CountQueryResult {
+  count: string;
+}
+
+interface DateTotalQueryResult {
+  date: string | Date;
+  total: string;
+}
+
+interface ServiceBookingRawResult {
+  id: number;
+  serviceName: string;
+  count: string;
+}
+
+interface LatestMonthQueryResult {
+  latestMonth: string | Date;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -138,7 +162,7 @@ export class ReportsService {
       })
       .andWhere('invoice.status = :status', { status: InvoiceStatus.PAID })
       .select('SUM(CAST(invoice.totalAmount AS DECIMAL))', 'total')
-      .getRawOne();
+      .getRawOne<TotalQueryResult>();
 
     const currentTotal = currentRevenue?.total
       ? parseFloat(currentRevenue.total)
@@ -176,7 +200,7 @@ export class ReportsService {
       })
       .andWhere('invoice.status = :status', { status: InvoiceStatus.UNPAID })
       .select('SUM(CAST(invoice.totalAmount AS DECIMAL))', 'total')
-      .getRawOne();
+      .getRawOne<TotalQueryResult>();
 
     const totalDebt = debtResult?.total ? parseFloat(debtResult.total) : 0;
 
@@ -189,7 +213,7 @@ export class ReportsService {
       })
       .andWhere('invoice.status = :status', { status: InvoiceStatus.UNPAID })
       .select('COUNT(DISTINCT invoice.apartmentId)', 'count')
-      .getRawOne();
+      .getRawOne<CountQueryResult>();
 
     const totalApartmentsOwing = apartmentsOwing?.count
       ? parseInt(apartmentsOwing.count, 10)
@@ -243,7 +267,7 @@ export class ReportsService {
       .addSelect('SUM(CAST(invoice.totalAmount AS DECIMAL))', 'total')
       .groupBy('DATE(invoice.createdAt)')
       .orderBy('date', 'ASC')
-      .getRawMany();
+      .getRawMany<DateTotalQueryResult>();
 
     revenues.forEach((row) => {
       const dateStr = new Date(row.date).toISOString().split('T')[0];
@@ -268,7 +292,7 @@ export class ReportsService {
       .addSelect('SUM(ticket.actualCost)', 'total')
       .groupBy('DATE(ticket.completedDate)')
       .orderBy('date', 'ASC')
-      .getRawMany();
+      .getRawMany<DateTotalQueryResult>();
 
     expenses.forEach((row) => {
       const dateStr = new Date(row.date).toISOString().split('T')[0];
@@ -314,11 +338,11 @@ export class ReportsService {
       .orderBy('count', 'DESC')
       .addOrderBy('service.name', 'ASC')
       .limit(4)
-      .getRawMany();
+      .getRawMany<ServiceBookingRawResult>();
 
     return serviceBookings.map((row) => ({
       serviceName: row.serviceName,
-      bookingCount: parseInt(row.count || 0, 10),
+      bookingCount: parseInt(row.count || '0', 10),
     }));
   }
 
@@ -406,7 +430,7 @@ export class ReportsService {
     const result = await this.invoiceRepository
       .createQueryBuilder('invoice')
       .select('MAX(invoice.period)', 'latestMonth')
-      .getRawOne();
+      .getRawOne<LatestMonthQueryResult>();
 
     if (!result?.latestMonth) {
       return null;
@@ -483,7 +507,7 @@ export class ReportsService {
 
       // Get invoice details for ALL invoices in this month
       const invoiceIds = allInvoices.map((inv) => inv.id);
-      let invoiceDetails: any[] = [];
+      let invoiceDetails: InvoiceDetail[] = [];
 
       if (invoiceIds.length > 0) {
         invoiceDetails = await this.invoiceDetailRepository
@@ -761,7 +785,7 @@ export class ReportsService {
       .createQueryBuilder('invoice')
       .select('MAX(invoice.period)', 'latestMonth')
       .where('invoice.apartmentId IN (:...apartmentIds)', { apartmentIds })
-      .getRawOne();
+      .getRawOne<LatestMonthQueryResult>();
 
     if (!result?.latestMonth) {
       throw new HttpException(
@@ -799,7 +823,7 @@ export class ReportsService {
 
       // Get invoice details for ALL invoices in this month
       const invoiceIds = allInvoices.map((inv) => inv.id);
-      let invoiceDetails: any[] = [];
+      let invoiceDetails: InvoiceDetail[] = [];
 
       if (invoiceIds.length > 0) {
         invoiceDetails = await this.invoiceDetailRepository

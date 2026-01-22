@@ -64,7 +64,7 @@ export class AssetsService {
     let installationDate: Date | undefined;
     if (createAssetDto.installationDate) {
       const dateStr = createAssetDto.installationDate;
-      
+
       // Extract YYYY-MM-DD from ISO string or date string
       let datePart: string;
       if (dateStr.includes('T')) {
@@ -94,12 +94,9 @@ export class AssetsService {
       nextMaintenanceDate.setMonth(
         installationDate.getMonth() + createAssetDto.maintenanceIntervalMonths,
       );
-    }
-    else {
+    } else {
       nextMaintenanceDate = new Date(installationDate!);
-      nextMaintenanceDate.setMonth(
-        installationDate!.getMonth() + 6,
-      );
+      nextMaintenanceDate.setMonth(installationDate!.getMonth() + 6);
     }
 
     const asset = this.assetRepository.create({
@@ -276,6 +273,7 @@ export class AssetsService {
         nextMaintenanceDate: asset.nextMaintenanceDate
           ? this.formatDate(asset.nextMaintenanceDate)
           : null,
+        maintenanceIntervalMonths: asset.maintenanceIntervalMonths || 0,
       },
       computed: {
         isWarrantyValid: !!isWarrantyValid,
@@ -452,10 +450,12 @@ export class AssetsService {
 
   private formatDate(date: Date | string): string {
     // Debug log
-    this.logger.debug(`formatDate input: ${date}, type: ${typeof date}, constructor: ${date?.constructor?.name}`);
-    
+    this.logger.debug(
+      `formatDate input: ${date}, type: ${typeof date}, constructor: ${date?.constructor?.name}`,
+    );
+
     let dateObj: Date;
-    
+
     if (date instanceof Date) {
       // Already a Date object - use as is
       dateObj = date;
@@ -467,26 +467,32 @@ export class AssetsService {
         const datePart = date.split('T')[0];
         const [year, month, day] = datePart.split('-').map(Number);
         dateObj = new Date(Date.UTC(year, month - 1, day));
-        this.logger.debug(`ISO string parsed, created UTC date: ${dateObj.toISOString()}`);
+        this.logger.debug(
+          `ISO string parsed, created UTC date: ${dateObj.toISOString()}`,
+        );
       } else {
         // Already just YYYY-MM-DD
         const [year, month, day] = date.split('-').map(Number);
         dateObj = new Date(Date.UTC(year, month - 1, day));
-        this.logger.debug(`Date string parsed, created UTC date: ${dateObj.toISOString()}`);
+        this.logger.debug(
+          `Date string parsed, created UTC date: ${dateObj.toISOString()}`,
+        );
       }
     } else {
       // Fallback
       dateObj = new Date(date);
       this.logger.debug(`Fallback parsing, result: ${dateObj.toISOString()}`);
     }
-    
+
     // Always use UTC getters since database stores UTC dates
     const year = dateObj.getUTCFullYear();
     const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
     const day = String(dateObj.getUTCDate()).padStart(2, '0');
     const result = `${year}-${month}-${day}`;
-    
-    this.logger.debug(`formatDate output: ${result}, using UTC getters (year=${year}, month=${month}, day=${day})`);
+
+    this.logger.debug(
+      `formatDate output: ${result}, using UTC getters (year=${year}, month=${month}, day=${day})`,
+    );
     return result;
   }
 

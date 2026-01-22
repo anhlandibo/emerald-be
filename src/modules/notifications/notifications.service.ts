@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import {
   Injectable,
   NotFoundException,
@@ -183,14 +184,15 @@ export class NotificationsService {
       (!createNotificationDto.publishedAt ||
         new Date(createNotificationDto.publishedAt) <= new Date())
     ) {
-      this.sendEmailNotification(savedNotification, createNotificationDto).catch(
-        (error) => {
-          this.logger.error(
-            `Failed to send email notification: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            error instanceof Error ? error.stack : '',
-          );
-        },
-      );
+      this.sendEmailNotification(
+        savedNotification,
+        createNotificationDto,
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send email notification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : '',
+        );
+      });
     }
 
     // Return notification with relations
@@ -243,12 +245,11 @@ export class NotificationsService {
 
       // Send emails to all recipients
       const recipientEmails = recipients.map((r) => r.email);
-      const result =
-        await this.mailerService.sendEmailToMultiple(
-          recipientEmails,
-          notification.title,
-          emailHtml,
-        );
+      const result = await this.mailerService.sendEmailToMultiple(
+        recipientEmails,
+        notification.title,
+        emailHtml,
+      );
 
       this.logger.log(
         `Email notification sent. ID: ${notification.id}, Successful: ${result.successful.length}, Failed: ${result.failed.length}`,

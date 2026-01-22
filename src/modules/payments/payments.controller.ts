@@ -206,7 +206,7 @@ export class PaymentsController {
     // VNPay will redirect here with its params in the query string
     // Extract txnRef from VNPay params
     const txnRef = query.vnp_TxnRef || query.txnRef;
-    
+
     console.log('[Mobile Callback] Received VNPay redirect:', {
       txnRef,
       responseCode: query.vnp_ResponseCode,
@@ -217,7 +217,8 @@ export class PaymentsController {
     if (!txnRef) {
       console.error('[Mobile Callback] ❌ Missing txnRef:', query);
       // Redirect to error page if no txnRef
-      const errorDeepLink = 'emerald://payment-result?status=failed&source=gateway';
+      const errorDeepLink =
+        'emerald://payment-result?status=failed&source=gateway';
       return res.redirect(errorDeepLink);
     }
 
@@ -228,7 +229,7 @@ export class PaymentsController {
 
     // Build deep link
     const deepLink = `emerald://payment-result?txnRef=${encodeURIComponent(txnRef)}&source=gateway&status=${status}`;
-    
+
     console.log('[Mobile Callback] ✅ Redirecting to deep link:', deepLink);
 
     // Return 302 redirect to deep link

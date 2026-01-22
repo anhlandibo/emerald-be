@@ -91,6 +91,13 @@ class AssetTimelineDto {
   })
   @Expose()
   nextMaintenanceDate: string;
+
+  @ApiProperty({
+    example: 6,
+    description: 'Maintenance interval in months',
+  })
+  @Expose()
+  maintenanceIntervalMonths: number;
 }
 
 class AssetComputedDto {

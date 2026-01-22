@@ -137,8 +137,7 @@ export class BookingsController {
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiDoc({
-    summary:
-      'Tạo yêu cầu thanh toán booking qua VNPay/MoMo',
+    summary: 'Tạo yêu cầu thanh toán booking qua VNPay/MoMo',
     description:
       'Tạo transaction thanh toán cho booking. Trả về payment URL để redirect đến cổng thanh toán.',
     auth: true,
