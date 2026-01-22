@@ -21,6 +21,9 @@ import { IssueTypeLabels } from './enums/issue-type.enum';
 import { IssueStatus, IssueStatusLabels } from './enums/issue-status.enum';
 import { IssueResponseDto } from './dtos/issue-response.dto';
 import { UserRole } from '../accounts/enums/user-role.enum';
+import { SystemNotificationsService } from '../system-notifications/system-notifications.service';
+import { AccountsService } from '../accounts/accounts.service';
+import { SystemNotificationType } from '../system-notifications/enums/system-notification-type.enum';
 
 @Injectable()
 export class IssuesService {
@@ -31,6 +34,8 @@ export class IssuesService {
     private readonly residentRepository: Repository<Resident>,
     @InjectRepository(Block)
     private readonly blockRepository: Repository<Block>,
+    private readonly systemNotificationsService: SystemNotificationsService,
+    private readonly accountsService: AccountsService,
   ) {}
 
   async create(
@@ -468,6 +473,7 @@ export class IssuesService {
   async assignToTechnicianDepartment(id: number): Promise<IssueResponseDto> {
     const issue = await this.issueRepository.findOne({
       where: { id, isActive: true },
+      relations: ['resident', 'resident.account'],
     });
 
     if (!issue) {
@@ -499,6 +505,42 @@ export class IssuesService {
     issue.updatedAt = new Date();
 
     const updatedIssue = await this.issueRepository.save(issue);
+
+    // 🔔 Gửi thông báo realtime cho toàn bộ kỹ thuật viên
+    try {
+      // Lấy danh sách tất cả kỹ thuật viên đang active
+      const technicians = await this.accountsService.findAll({
+        role: UserRole.TECHNICIAN,
+        isActive: true,
+      });
+
+      if (technicians && technicians.length > 0) {
+        const technicianIds = technicians.map((tech) => tech.id);
+
+        // Gửi thông báo
+        await this.systemNotificationsService.sendSystemNotification(
+          {
+            title: '🔧 Phản ánh mới được chuyển đến bộ phận kỹ thuật',
+            content: `Phản ánh "${issue.title}" từ cư dân ${issue.resident?.account?.fullName || 'N/A'} đã được chuyển tiếp. Vui lòng kiểm tra và xử lý.`,
+            type: SystemNotificationType.INFO,
+            metadata: {
+              issueId: updatedIssue.id,
+              issueType: issue.type,
+              issueStatus: issue.status,
+              residentName: issue.resident?.account?.fullName || 'N/A',
+              blockName: issue.block?.name || 'N/A',
+            },
+            actionUrl: `/issues/${updatedIssue.id}`,
+            actionText: 'Xem chi tiết',
+          },
+          1, // System user ID (admin)
+        );
+      }
+    } catch (error) {
+      // Log lỗi nhưng không ảnh hưởng đến việc chuyển tiếp phản ánh
+      console.error('❌ Lỗi khi gửi thông báo cho kỹ thuật viên:', error);
+    }
+
     return this.findOne(updatedIssue.id);
   }
 
