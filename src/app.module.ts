@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { SupabaseStorageModule } from './modules/supabase-storage/supabase-storage.module';
+import { MailerModule } from './modules/mailer/mailer.module';
 import getDatabaseConfig from './configs/database.config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccountsModule } from './modules/accounts/accounts.module';
@@ -35,6 +36,7 @@ import { SystemNotificationsModule } from './modules/system-notifications/system
     ConfigModule.forRoot({ isGlobal: true }),
     CloudinaryModule,
     SupabaseStorageModule,
+    MailerModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: getDatabaseConfig,

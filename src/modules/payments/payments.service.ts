@@ -32,8 +32,13 @@ export class PaymentsService {
     private readonly vnpayService: VNPayService,
   ) {}
 
-  async createPayment(accountId: number, createPaymentDto: CreatePaymentDto) {
-    const { targetType, targetId, paymentMethod } = createPaymentDto;
+  async createPayment(
+    accountId: number,
+    createPaymentDto: CreatePaymentDto,
+    userAgent?: string,
+  ) {
+    const { targetType, targetId, paymentMethod, deviceType, redirectUrl } =
+      createPaymentDto;
 
     // Validate target exists and get amount
     let amount: number;
@@ -112,6 +117,43 @@ export class PaymentsService {
     // Generate payment URL based on gateway
     let paymentUrl: string;
 
+    // Determine redirect URL based on device type
+    // IMPORTANT: VNPay/MoMo only support HTTP(S) URLs, NOT deep links
+    // For mobile, we return HTTP URL and app handles the redirect
+    let finalRedirectUrl: string;
+    if (redirectUrl && !redirectUrl.startsWith('emerald://')) {
+      // Custom HTTP(S) redirect URL provided
+      finalRedirectUrl = redirectUrl;
+    } else if (
+      deviceType === 'mobile' ||
+      deviceType === 'ios' ||
+      deviceType === 'android'
+    ) {
+      // Mobile app - use HTTP redirect URL (gateway can't handle deep links)
+      // IMPORTANT: Don't include query params here - VNPay will append its own params
+      // VNPay redirects to this HTTP endpoint with all its params included in the URL
+      const mobileRedirectUrl = process.env.MOBILE_APP_REDIRECT_URL;
+      if (!mobileRedirectUrl) {
+        console.error('[Payment] ❌ ERROR: MOBILE_APP_REDIRECT_URL not set in environment!');
+        console.error('[Payment] Please set MOBILE_APP_REDIRECT_URL to your backend HTTP URL');
+        throw new BadRequestException(
+          'Mobile app redirect URL not configured. Please contact support.',
+        );
+      }
+      // Don't add query params - VNPay will add them automatically
+      finalRedirectUrl = mobileRedirectUrl;
+    } else {
+      // Web fallback
+      finalRedirectUrl = `${process.env.FRONTEND_URL}/payments/result?source=gateway`;
+    }
+
+    console.log('[Payment] ✅ Generated redirect URL:', {
+      deviceType: deviceType || 'web',
+      finalRedirectUrl,
+      txnRef,
+      note: 'VNPay will append its own params to this URL',
+    });
+
     try {
       if (paymentMethod === PaymentGateway.MOMO) {
         if (!this.momoService.isAvailable()) {
@@ -123,25 +165,33 @@ export class PaymentsService {
           orderId: txnRef,
           amount: amount,
           orderInfo: description,
-          redirectUrl: `${process.env.FRONTEND_URL}/payments/result`,
+          redirectUrl: finalRedirectUrl,
           ipnUrl: `${process.env.BACKEND_URL}/api/v1/payments/webhook/momo`,
           requestId: `${txnRef}_${Date.now()}`,
         });
         paymentUrl = momoResult.payUrl;
       } else if (paymentMethod === PaymentGateway.VNPAY) {
         const ipnUrl = `${process.env.BACKEND_URL}/api/v1/payments/webhook/vnpay`;
-        console.log('[Payment] Creating VNPay payment with IPN URL:', ipnUrl);
+        console.log('[Payment] 🚀 Creating VNPay payment...');
+        console.log('[Payment] VNPay params:', {
+          orderId: txnRef,
+          amount: amount,
+          description: description,
+          returnUrl: finalRedirectUrl,
+          ipnUrl: ipnUrl,
+        });
 
         const vnpayResult = this.vnpayService.createPayment({
           orderId: txnRef,
           amount: amount,
           orderInfo: description,
-          returnUrl: `${process.env.FRONTEND_URL}/payments/result`,
+          returnUrl: finalRedirectUrl,
           ipnUrl: ipnUrl,
           ipAddr: '127.0.0.1',
         });
         paymentUrl = vnpayResult.payUrl;
-        console.log('[Payment] VNPay payment URL created:', paymentUrl);
+        console.log('[Payment] ✅ VNPay payment URL created successfully');
+        console.log('[Payment] Payment URL starts with:', paymentUrl?.substring(0, 100) + '...');
       } else {
         throw new BadRequestException('Payment gateway không được hỗ trợ');
       }

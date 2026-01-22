@@ -24,7 +24,14 @@ import { SystemNotificationType } from 'src/modules/system-notifications/entitie
 
 @Injectable()
 export class InvoicesService {
-  private readonly VAT_RATE = 8; // 8% VAT
+  // VAT rates by fee type/name
+  private readonly VAT_RATES = {
+    'Tiền điện': 8, // Electricity: 8%
+    'Tiền nước': 5, // Water: 5%
+    'Phí quản lý': 0, // Management fee: 0%
+    'Phí dịch vụ': 0, // Service fee: 0%
+    default: 0, // Default: 0% for other fees
+  };
 
   constructor(
     @InjectRepository(Invoice)
@@ -48,15 +55,28 @@ export class InvoicesService {
   ) {}
 
   /**
-   * Tính VAT cho amount
+   * Tính VAT cho amount dựa trên loại phí
+   * @param amount - số tiền cần tính VAT
+   * @param feeName - tên loại phí (để xác định VAT rate)
+   * @returns VAT amount và total with VAT
    */
-  private calculateVAT(amount: number): {
+  private calculateVAT(
+    amount: number,
+    feeName?: string,
+  ): {
     vatAmount: number;
     totalWithVat: number;
+    vatRate: number;
   } {
-    const vatAmount = Number(((amount * this.VAT_RATE) / 100).toFixed(2));
+    // Xác định VAT rate dựa trên feeName
+    const vatRate = feeName
+      ? (this.VAT_RATES[feeName] ?? this.VAT_RATES.default)
+      : this.VAT_RATES.default;
+
+    const vatAmount = Number(((amount * vatRate) / 100).toFixed(2));
     const totalWithVat = Number((amount + vatAmount).toFixed(2));
-    return { vatAmount, totalWithVat };
+
+    return { vatAmount, totalWithVat, vatRate };
   }
 
   /**
@@ -242,7 +262,10 @@ export class InvoicesService {
         waterPrice = waterUsage * Number(waterFee.tiers?.[0]?.unitPrice || 0);
       }
 
-      const { vatAmount, totalWithVat } = this.calculateVAT(waterPrice);
+      const { vatAmount, totalWithVat } = this.calculateVAT(
+        waterPrice,
+        waterFee.name,
+      );
 
       details.push({
         feeTypeId: waterFee.id,
@@ -288,7 +311,10 @@ export class InvoicesService {
           electricityUsage * Number(electricityFee.tiers?.[0]?.unitPrice || 0);
       }
 
-      const { vatAmount, totalWithVat } = this.calculateVAT(electricityPrice);
+      const { vatAmount, totalWithVat } = this.calculateVAT(
+        electricityPrice,
+        electricityFee.name,
+      );
 
       details.push({
         feeTypeId: electricityFee.id,
@@ -323,7 +349,10 @@ export class InvoicesService {
         const unitPrice = Number(fee.tiers?.[0]?.unitPrice || 0);
         feePrice = feeAmount * unitPrice;
 
-        const { vatAmount, totalWithVat } = this.calculateVAT(feePrice);
+        const { vatAmount, totalWithVat } = this.calculateVAT(
+          feePrice,
+          fee.name,
+        );
 
         details.push({
           feeTypeId: fee.id,
@@ -339,7 +368,10 @@ export class InvoicesService {
         feeAmount = 1;
         feePrice = Number(fee.tiers?.[0]?.unitPrice || 0);
 
-        const { vatAmount, totalWithVat } = this.calculateVAT(feePrice);
+        const { vatAmount, totalWithVat } = this.calculateVAT(
+          feePrice,
+          fee.name,
+        );
 
         details.push({
           feeTypeId: fee.id,
@@ -507,12 +539,21 @@ export class InvoicesService {
       periodDate,
     );
 
-    // Tính VAT cho toàn bộ hóa đơn
-    const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
+    // Tính VAT tổng từ sum của vatAmount của các details
+    const totalVatAmount = Number(
+      details
+        .reduce((sum, detail) => sum + (detail.vatAmount || 0), 0)
+        .toFixed(2),
+    );
+    const totalWithVat = Number((subtotalAmount + totalVatAmount).toFixed(2));
 
     // Tính due date (15 ngày từ ngày tạo)
     const now = new Date();
     const dueDate = this.calculateDueDate(now, 15);
+
+    // Xác định VAT rate trung bình (để hiển thị trong invoice header)
+    const avgVatRate =
+      subtotalAmount > 0 ? (totalVatAmount / subtotalAmount) * 100 : 0;
 
     // Tạo invoice
     const invoice = this.invoiceRepository.create({
@@ -520,8 +561,8 @@ export class InvoicesService {
       apartmentId,
       period: periodDate,
       subtotalAmount,
-      vatRate: this.VAT_RATE,
-      vatAmount,
+      vatRate: Number(avgVatRate.toFixed(2)),
+      vatAmount: totalVatAmount,
       totalAmount: totalWithVat,
       status: InvoiceStatus.UNPAID,
       dueDate,
@@ -645,12 +686,21 @@ export class InvoicesService {
       periodDate,
     );
 
-    // Tính VAT cho toàn bộ hóa đơn
-    const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
+    // Tính VAT tổng từ sum của vatAmount của các details
+    const totalVatAmount = Number(
+      details
+        .reduce((sum, detail) => sum + (detail.vatAmount || 0), 0)
+        .toFixed(2),
+    );
+    const totalWithVat = Number((subtotalAmount + totalVatAmount).toFixed(2));
 
     // Tính due date (15 ngày từ ngày tạo)
     const now = new Date();
     const dueDate = this.calculateDueDate(now, 15);
+
+    // Xác định VAT rate trung bình (để hiển thị trong invoice header)
+    const avgVatRate =
+      subtotalAmount > 0 ? (totalVatAmount / subtotalAmount) * 100 : 0;
 
     // Tạo invoice
     const invoice = this.invoiceRepository.create({
@@ -658,8 +708,8 @@ export class InvoicesService {
       apartmentId,
       period: periodDate,
       subtotalAmount,
-      vatRate: this.VAT_RATE,
-      vatAmount,
+      vatRate: Number(avgVatRate.toFixed(2)),
+      vatAmount: totalVatAmount,
       totalAmount: totalWithVat,
       status: InvoiceStatus.UNPAID,
       dueDate,
@@ -753,15 +803,24 @@ export class InvoicesService {
       periodDate,
     );
 
-    // Tính VAT cho toàn bộ hóa đơn
-    const { vatAmount, totalWithVat } = this.calculateVAT(subtotalAmount);
+    // Tính VAT tổng từ sum của vatAmount của các details
+    const totalVatAmount = Number(
+      details
+        .reduce((sum, detail) => sum + (detail.vatAmount || 0), 0)
+        .toFixed(2),
+    );
+    const totalWithVat = Number((subtotalAmount + totalVatAmount).toFixed(2));
+
+    // Xác định VAT rate trung bình (để hiển thị trong invoice header)
+    const avgVatRate =
+      subtotalAmount > 0 ? (totalVatAmount / subtotalAmount) * 100 : 0;
 
     // Cập nhật invoice
     invoice.apartmentId = apartmentId;
     invoice.period = periodDate;
     invoice.subtotalAmount = subtotalAmount;
-    invoice.vatRate = this.VAT_RATE;
-    invoice.vatAmount = vatAmount;
+    invoice.vatRate = Number(avgVatRate.toFixed(2));
+    invoice.vatAmount = totalVatAmount;
     invoice.totalAmount = totalWithVat;
     invoice.invoiceCode = await this.generateInvoiceCode(
       apartmentId,
@@ -928,6 +987,7 @@ export class InvoicesService {
           billingMonth: invoice.period,
         })
         .andWhere('mr.imageProofUrl IS NOT NULL')
+        .andWhere('mr.isVerified = :isVerified', { isVerified: true })
         .orderBy('mr.createdAt', 'DESC')
         .getMany();
 
@@ -954,8 +1014,7 @@ export class InvoicesService {
       }
 
       // Calculate if all meter readings are verified
-      const meterReadingsVerified =
-        meterReadings.length > 0 && meterReadings.every((mr) => mr.isVerified);
+      const meterReadingsVerified = meterReadings.length > 0;
 
       result.push({
         ...invoice,
@@ -1188,6 +1247,7 @@ export class InvoicesService {
         // Tính VAT cho detail
         const { vatAmount, totalWithVat } = this.calculateVAT(
           detail.totalPrice,
+          detail.feeType?.name,
         );
         detail.vatAmount = vatAmount;
         detail.totalWithVat = totalWithVat;
@@ -1230,7 +1290,10 @@ export class InvoicesService {
         if (fee.tiers && fee.tiers.length > 0) {
           const result = this.calculateTieredPrice(usage, fee.tiers);
           const totalPrice = Number(result.totalPrice);
-          const { vatAmount, totalWithVat } = this.calculateVAT(totalPrice);
+          const { vatAmount, totalWithVat } = this.calculateVAT(
+            totalPrice,
+            fee.name,
+          );
 
           newDetails.push({
             feeTypeId,
@@ -1265,7 +1328,6 @@ export class InvoicesService {
 
     // Cập nhật invoice
     invoice.subtotalAmount = Number(newSubtotalAmount.toFixed(2));
-    invoice.vatRate = this.VAT_RATE;
     invoice.vatAmount = vatAmount;
     invoice.totalAmount = totalWithVat;
 

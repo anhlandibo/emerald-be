@@ -2,14 +2,20 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsDateString, IsNumber } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 
 export class CreateInvoiceClientDto {
   @ApiProperty({
     example: 1,
     description: 'ID của căn hộ cử dân muốn tạo hóa đơn',
   })
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   apartmentId: number;
 
   @ApiProperty({
@@ -22,6 +28,7 @@ export class CreateInvoiceClientDto {
   })
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   waterIndex: number;
 
   @ApiProperty({
@@ -34,6 +41,7 @@ export class CreateInvoiceClientDto {
   })
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   electricityIndex: number;
 
   // @ApiProperty({
