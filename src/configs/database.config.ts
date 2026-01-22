@@ -15,5 +15,8 @@ const getDatabaseConfig = (
   ssl: {
     rejectUnauthorized: false,
   },
+  extra: {
+    timezone: 'UTC',
+  },
 });
 export default getDatabaseConfig;
