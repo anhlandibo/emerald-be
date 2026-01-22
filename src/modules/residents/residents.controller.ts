@@ -31,6 +31,7 @@ import { QueryResidentDto } from './dto/query-resident.dto';
 import { ResidentResponseDto } from './dto/resident-response.dto';
 import { ResidentProfileResponseDto } from './dto/resident-profile-response.dto';
 import { ResidentInvoicesDetailResponseDto } from './dto/resident-invoices-detail-response.dto';
+import { ResidentResidencesResponseDto } from './dto/resident-residences-response.dto';
 import { DeleteManyResidentsDto } from './dto/delete-many-residents.dto';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { plainToInstance } from 'class-transformer';
@@ -139,9 +140,11 @@ export class ResidentsController {
     return plainToInstance(ResidentInvoicesDetailResponseDto, result);
   }
 
-  @Get(':id')
+  @Get(':id/apartments')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get a resident by ID' })
+  @ApiOperation({
+    summary: 'Get residence information (apartments) for a specific resident',
+  })
   @ApiParam({
     name: 'id',
     description: 'Resident ID',
@@ -149,16 +152,16 @@ export class ResidentsController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Resident retrieved successfully',
-    type: ResidentResponseDto,
+    description: 'Residences retrieved successfully',
+    type: ResidentResidencesResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Resident not found',
   })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const resident = await this.residentsService.findOne(id);
-    return plainToInstance(ResidentResponseDto, resident);
+  async getResidentResidences(@Param('id', ParseIntPipe) id: number) {
+    const result = await this.residentsService.getResidentResidences(id);
+    return plainToInstance(ResidentResidencesResponseDto, result);
   }
 
   @Get(':id/invoices')
@@ -183,6 +186,28 @@ export class ResidentsController {
   async getResidentInvoices(@Param('id', ParseIntPipe) id: number) {
     const result = await this.residentsService.getResidentInvoices(id);
     return plainToInstance(ResidentInvoicesDetailResponseDto, result);
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get a resident by ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'Resident ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Resident retrieved successfully',
+    type: ResidentResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Resident not found',
+  })
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const resident = await this.residentsService.findOne(id);
+    return plainToInstance(ResidentResponseDto, resident);
   }
 
   @Patch(':id')

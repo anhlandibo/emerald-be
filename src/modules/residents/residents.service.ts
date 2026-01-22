@@ -444,4 +444,42 @@ export class ResidentsService {
       payments,
     };
   }
+
+  /**
+   * Get residences (apartment-resident relationships) for a specific resident
+   */
+  async getResidentResidences(residentId: number) {
+    // Find resident by ID
+    const resident = await this.residentRepository.findOne({
+      where: { id: residentId, isActive: true },
+    });
+
+    if (!resident) {
+      throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Get all apartment-resident records with apartment and block details
+    const residences = await this.apartmentResidentRepository.find({
+      where: { residentId: resident.id },
+      relations: ['apartment', 'apartment.block'],
+      order: { id: 'ASC' },
+    });
+
+    // Transform to include block name in apartment
+    const transformedResidences = residences.map((residence) => ({
+      id: residence.id,
+      apartmentId: residence.apartmentId,
+      apartment: {
+        id: residence.apartment.id,
+        roomNumber: residence.apartment.name,
+        blockName: residence.apartment.block?.name || 'N/A',
+        area: residence.apartment.area,
+      },
+      relationship: residence.relationship,
+    }));
+
+    return {
+      residences: transformedResidences,
+    };
+  }
 }
