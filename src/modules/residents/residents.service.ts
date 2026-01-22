@@ -399,4 +399,49 @@ export class ResidentsService {
       payments,
     };
   }
+
+  /**
+   * Get invoices and payment transactions for a specific resident by ID
+   */
+  async getResidentInvoices(residentId: number) {
+    // Find resident by ID
+    const resident = await this.residentRepository.findOne({
+      where: { id: residentId, isActive: true },
+    });
+
+    if (!resident) {
+      throw new HttpException('Cư dân không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Get all apartment-resident records for this resident
+    const apartmentResidents = await this.apartmentResidentRepository.find({
+      where: { residentId: resident.id },
+    });
+
+    const apartmentIds = apartmentResidents.map((ar) => ar.apartmentId);
+
+    // Get invoices for all apartments
+    const invoices =
+      apartmentIds.length > 0
+        ? await this.invoiceRepository.find({
+            where: { apartmentId: In(apartmentIds) },
+            relations: ['apartment'],
+            order: { createdAt: 'DESC' },
+          })
+        : [];
+
+    // Get payment transactions for this resident (by accountId)
+    const payments = resident.accountId
+      ? await this.paymentTransactionRepository.find({
+          where: { accountId: resident.accountId },
+          order: { createdAt: 'DESC' },
+        })
+      : [];
+
+    // Return invoices and payments together
+    return {
+      invoices,
+      payments,
+    };
+  }
 }

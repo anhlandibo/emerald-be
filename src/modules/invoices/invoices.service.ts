@@ -809,14 +809,12 @@ export class InvoicesService {
    * Lấy danh sách hóa đơn
    */
   async findAll(queryDto: QueryInvoiceDto): Promise<Invoice[]> {
-    const { page = 1, limit = 10, apartmentId, status, period } = queryDto;
+    const { apartmentId, status, period } = queryDto;
 
     const query = this.invoiceRepository
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.apartment', 'apartment')
       .where('invoice.isActive = :isActive', { isActive: true })
-      .skip((page - 1) * limit)
-      .take(limit)
       .orderBy('invoice.createdAt', 'DESC');
 
     if (apartmentId) {

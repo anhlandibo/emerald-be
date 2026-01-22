@@ -161,6 +161,30 @@ export class ResidentsController {
     return plainToInstance(ResidentResponseDto, resident);
   }
 
+  @Get(':id/invoices')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get invoices and payment transactions for a specific resident',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Resident ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Invoices and payments retrieved successfully',
+    type: ResidentInvoicesDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Resident not found',
+  })
+  async getResidentInvoices(@Param('id', ParseIntPipe) id: number) {
+    const result = await this.residentsService.getResidentInvoices(id);
+    return plainToInstance(ResidentInvoicesDetailResponseDto, result);
+  }
+
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update a resident by ID' })

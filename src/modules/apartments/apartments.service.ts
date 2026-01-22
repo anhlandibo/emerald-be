@@ -186,13 +186,15 @@ export class ApartmentsService {
       fullName: ar.resident.fullName,
       gender: this.getGenderLabel(ar.resident.gender),
       phone: ar.resident.phoneNumber,
-      relationship: this.getRelationshipLabel(ar.relationship),
+      relationship: ar.relationship,
     }));
 
     const hasResidents = apartment.apartmentResidents.length > 1;
 
     return {
       generalInfo: {
+        ownerId: owner?.id,
+        blockId: apartment.block.id,
         apartmentName: apartment.name,
         building: apartment.block.name,
         floor: apartment.floor,
@@ -375,15 +377,15 @@ export class ApartmentsService {
     return genderMap[gender] || gender;
   }
 
-  private getRelationshipLabel(relationship: RelationshipType): string {
-    const relationshipMap = {
-      [RelationshipType.OWNER]: 'Chủ hộ',
-      [RelationshipType.SPOUSE]: 'Vợ/chồng',
-      [RelationshipType.CHILD]: 'Con',
-      [RelationshipType.PARTNER]: 'Bạn đời',
-    };
-    return relationshipMap[relationship] || relationship;
-  }
+  // private getRelationshipLabel(relationship: RelationshipType): string {
+  //   const relationshipMap = {
+  //     [RelationshipType.OWNER]: 'Chủ hộ',
+  //     [RelationshipType.SPOUSE]: 'Vợ/chồng',
+  //     [RelationshipType.CHILD]: 'Con',
+  //     [RelationshipType.PARTNER]: 'Bạn đời',
+  //   };
+  //   return relationshipMap[relationship] || relationship;
+  // }
 
   private getAllRelationships(): { value: string; label: string }[] {
     return [
