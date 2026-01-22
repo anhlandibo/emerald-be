@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { Gender } from '../enums/gender.enum';
 import { AccountResponseDto } from '../../accounts/dto/account-response.dto';
+import { ResidenceInfoDto } from './resident-residences-response.dto';
 
 @Exclude()
 export class ResidentResponseDto {
@@ -125,4 +126,13 @@ export class ResidentResponseDto {
   })
   @Expose()
   updatedAt: Date;
+
+  @ApiProperty({
+    type: [ResidenceInfoDto],
+    description: 'List of residences where the resident lives',
+    required: false,
+  })
+  @Expose()
+  @Type(() => ResidenceInfoDto)
+  residences?: ResidenceInfoDto[];
 }

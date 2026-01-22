@@ -124,16 +124,13 @@ export class ResidentsService {
   async findAll(query: QueryResidentDto) {
     const { search, gender, nationality } = query;
 
-    const where: FindOptionsWhere<Resident> = {
-      isActive: true,
-      ...(gender && { gender }),
-      ...(nationality && { nationality }),
-    };
-
     // Build query with search
     const queryBuilder = this.residentRepository
       .createQueryBuilder('resident')
       .leftJoinAndSelect('resident.account', 'account')
+      .leftJoinAndSelect('resident.apartmentResidents', 'apartmentResidents')
+      .leftJoinAndSelect('apartmentResidents.apartment', 'apartment')
+      .leftJoinAndSelect('apartment.block', 'block')
       .where('resident.isActive = :isActive', { isActive: true });
 
     if (gender) {
@@ -155,13 +152,34 @@ export class ResidentsService {
 
     queryBuilder.orderBy('resident.createdAt', 'DESC');
 
-    return queryBuilder.getMany();
+    const residents = await queryBuilder.getMany();
+
+    // Transform to include residences
+    return residents.map((resident) => ({
+      ...resident,
+      residences: resident.apartmentResidents?.map((ar) => ({
+        id: ar.id,
+        apartmentId: ar.apartmentId,
+        apartment: {
+          id: ar.apartment.id,
+          roomNumber: ar.apartment.name,
+          blockName: ar.apartment.block.name,
+          area: ar.apartment.area,
+        },
+        relationship: ar.relationship,
+      })),
+    }));
   }
 
   async findOne(id: number) {
     const resident = await this.residentRepository.findOne({
       where: { id, isActive: true },
-      relations: ['account'],
+      relations: [
+        'account',
+        'apartmentResidents',
+        'apartmentResidents.apartment',
+        'apartmentResidents.apartment.block',
+      ],
     });
 
     if (!resident) {
@@ -171,7 +189,20 @@ export class ResidentsService {
       );
     }
 
-    return resident;
+    return {
+      ...resident,
+      residences: resident.apartmentResidents?.map((ar) => ({
+        id: ar.id,
+        apartmentId: ar.apartmentId,
+        apartment: {
+          id: ar.apartment.id,
+          roomNumber: ar.apartment.name,
+          blockName: ar.apartment.block.name,
+          area: ar.apartment.area,
+        },
+        relationship: ar.relationship,
+      })),
+    };
   }
 
   async findByCitizenId(citizenId: string) {
@@ -275,6 +306,18 @@ export class ResidentsService {
       throw new HttpException(
         'Không tìm thấy cư dân với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if any resident is living in an apartment
+    const apartmentResidents = await this.apartmentResidentRepository.find({
+      where: { residentId: In(ids) },
+    });
+
+    if (apartmentResidents.length > 0) {
+      throw new HttpException(
+        'Không thể xóa cư dân đang là chủ hộ hoặc thành viên. Vui lòng thay đổi chủ hộ/thành viên trước khi xóa.',
+        HttpStatus.BAD_REQUEST,
       );
     }
 

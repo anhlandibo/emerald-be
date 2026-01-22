@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsPositive, IsOptional, IsString, IsArray, ArrayMinSize } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsPositive,
+  IsOptional,
+  IsString,
+  IsArray,
+  ArrayMinSize,
+} from 'class-validator';
 import { PaymentTargetType } from '../enums/payment-target-type.enum';
 import { PaymentGateway } from '../enums/payment-gateway.enum';
 

@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Gender } from '../enums/gender.enum';
 import { Account } from '../../accounts/entities/account.entity';
+import { ApartmentResident } from '../../apartments/entities/apartment-resident.entity';
 
 @Entity('residents')
 export class Resident {
@@ -68,4 +70,7 @@ export class Resident {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToMany(() => ApartmentResident, (ar) => ar.resident)
+  apartmentResidents: ApartmentResident[];
 }

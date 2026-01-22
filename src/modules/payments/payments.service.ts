@@ -470,8 +470,8 @@ export class PaymentsService {
     payment.gatewayTxnId = transId;
     payment.gatewayResponseCode = String(resultCode);
     payment.rawLog = {
-      ...payment.rawLog,  // Preserve existing batchIds
-      ...data,            // Add webhook response data
+      ...payment.rawLog, // Preserve existing batchIds
+      ...data, // Add webhook response data
     };
     payment.updatedAt = new Date();
 
@@ -533,8 +533,8 @@ export class PaymentsService {
     payment.gatewayTxnId = vnp_TransactionNo;
     payment.gatewayResponseCode = vnp_ResponseCode;
     payment.rawLog = {
-      ...payment.rawLog,  // Preserve existing batchIds
-      ...data,            // Add webhook response data
+      ...payment.rawLog, // Preserve existing batchIds
+      ...data, // Add webhook response data
     };
     payment.updatedAt = new Date();
 

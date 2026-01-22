@@ -352,12 +352,25 @@ export class ApartmentsService {
   async removeMany(ids: number[]) {
     const apartments = await this.apartmentRepository.find({
       where: { id: In(ids), isActive: true },
+      relations: ['apartmentResidents'],
     });
 
     if (apartments.length === 0) {
       throw new HttpException(
         'Không tìm thấy căn hộ nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if any apartment has residents
+    const apartmentsWithResidents = apartments.filter(
+      (apt) => apt.apartmentResidents && apt.apartmentResidents.length > 0,
+    );
+
+    if (apartmentsWithResidents.length > 0) {
+      throw new HttpException(
+        'Không thể xóa căn hộ đang có cư dân cư trú. Vui lòng chuyển cư dân đi trước.',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
