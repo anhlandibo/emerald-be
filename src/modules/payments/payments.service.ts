@@ -6,7 +6,8 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, LessThan } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentTransaction } from './entities/payment-transaction.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { Booking } from '../bookings/entities/booking.entity';
@@ -151,13 +152,6 @@ export class PaymentsService {
       finalRedirectUrl = `${process.env.FRONTEND_URL}/payments/result?source=gateway`;
     }
 
-    console.log('[Payment] ✅ Generated redirect URL:', {
-      deviceType: deviceType || 'web',
-      finalRedirectUrl,
-      txnRef,
-      note: 'VNPay will append its own params to this URL',
-    });
-
     try {
       if (paymentMethod === PaymentGateway.MOMO) {
         if (!this.momoService.isAvailable()) {
@@ -194,11 +188,6 @@ export class PaymentsService {
           ipAddr: '127.0.0.1',
         });
         paymentUrl = vnpayResult.payUrl;
-        console.log('[Payment] ✅ VNPay payment URL created successfully');
-        console.log(
-          '[Payment] Payment URL starts with:',
-          paymentUrl?.substring(0, 100) + '...',
-        );
       } else {
         throw new BadRequestException('Payment gateway không được hỗ trợ');
       }
@@ -614,5 +603,30 @@ export class PaymentsService {
     const minute = parseInt(vnpPayDate.substring(10, 12));
     const second = parseInt(vnpPayDate.substring(12, 14));
     return new Date(year, month, day, hour, minute, second);
+  }
+
+  /**
+   * [Cron Job] Cleanup expired pending payments (after 15 minutes)
+   * Runs every hour
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpiredPayments() {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    const result = await this.paymentRepository.update(
+      {
+        status: PaymentStatus.PENDING,
+        createdAt: LessThan(fifteenMinutesAgo),
+      },
+      { status: PaymentStatus.FAILED },
+    );
+
+    if (result.affected && result.affected > 0) {
+      console.log(
+        `✅ [PaymentCleanup] Marked ${result.affected} expired payments as FAILED`,
+      );
+    }
+
+    return { affected: result.affected || 0 };
   }
 }

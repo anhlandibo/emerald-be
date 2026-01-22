@@ -2,6 +2,8 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In } from 'typeorm';
 import { Technician } from './entities/technician.entity';
+import { MaintenanceTicket } from '../maintenance-tickets/entities/maintenance-ticket.entity';
+import { TicketStatus } from '../maintenance-tickets/enums/ticket-status.enum';
 import { CreateTechnicianDto } from './dto/create-technician.dto';
 import { UpdateTechnicianDto } from './dto/update-technician.dto';
 import { QueryTechnicianDto } from './dto/query-technician.dto';
@@ -12,6 +14,8 @@ export class TechniciansService {
   constructor(
     @InjectRepository(Technician)
     private technicianRepository: Repository<Technician>,
+    @InjectRepository(MaintenanceTicket)
+    private ticketRepository: Repository<MaintenanceTicket>,
   ) {}
 
   /**
@@ -122,6 +126,23 @@ export class TechniciansService {
    */
   async remove(id: number): Promise<Technician> {
     const technician = await this.findOne(id);
+
+    // Check if technician has active maintenance tickets
+    const activeTicketsCount = await this.ticketRepository.count({
+      where: {
+        technicianId: id,
+        status: In([TicketStatus.PENDING, TicketStatus.IN_PROGRESS]),
+        isActive: true,
+      },
+    });
+
+    if (activeTicketsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa kỹ thuật viên đang xử lý ${activeTicketsCount} tickets`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     technician.isActive = false;
     const deletedTechnician = await this.technicianRepository.save(technician);
     return deletedTechnician;
@@ -139,6 +160,22 @@ export class TechniciansService {
       throw new HttpException(
         'Không tìm thấy kỹ thuật viên nào để xóa',
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if any of these technicians have active maintenance tickets
+    const activeTicketsCount = await this.ticketRepository.count({
+      where: {
+        technicianId: In(ids),
+        status: In([TicketStatus.PENDING, TicketStatus.IN_PROGRESS]),
+        isActive: true,
+      },
+    });
+
+    if (activeTicketsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa các kỹ thuật viên đang xử lý ${activeTicketsCount} tickets`,
+        HttpStatus.BAD_REQUEST,
       );
     }
 

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Fee } from './entities/fee.entity';
 import { FeeTier } from './entities/fee-tier.entity';
+import { InvoiceDetail } from '../invoices/entities/invoice-detail.entity';
 import { CreateFeeDto } from './dto/create-fee.dto';
 import { CreateFeeTierDto } from './dto/create-fee-tier.dto';
 import { UpdateFeeDto } from './dto/update-fee.dto';
@@ -15,6 +16,8 @@ export class FeesService {
     private readonly feeRepository: Repository<Fee>,
     @InjectRepository(FeeTier)
     private readonly feeTierRepository: Repository<FeeTier>,
+    @InjectRepository(InvoiceDetail)
+    private readonly invoiceDetailRepository: Repository<InvoiceDetail>,
   ) {}
 
   async create(createFeeDto: CreateFeeDto) {
@@ -206,6 +209,18 @@ export class FeesService {
       );
     }
 
+    // Check if fee is used in any invoices
+    const invoiceDetailsCount = await this.invoiceDetailRepository.count({
+      where: { feeTypeId: id },
+    });
+
+    if (invoiceDetailsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa phí đang được sử dụng trong ${invoiceDetailsCount} hóa đơn`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Soft delete fee
     fee.isActive = false;
     await this.feeRepository.save(fee);
@@ -225,6 +240,18 @@ export class FeesService {
       throw new HttpException(
         'Không tìm thấy phí nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if any of these fees are used in invoices
+    const invoiceDetailsCount = await this.invoiceDetailRepository.count({
+      where: { feeTypeId: In(ids) },
+    });
+
+    if (invoiceDetailsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa các phí đang được sử dụng trong ${invoiceDetailsCount} hóa đơn`,
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -248,6 +275,14 @@ export class FeesService {
     const sortedTiers = [...tiers].sort(
       (a, b) => Number(a.fromValue) - Number(b.fromValue),
     );
+
+    // [Issue #14] Check first tier starts from 0
+    if (sortedTiers.length > 0 && Number(sortedTiers[0].fromValue) !== 0) {
+      throw new HttpException(
+        'Bậc đầu tiên phải bắt đầu từ 0',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     // Check for overlaps and gaps
     for (let i = 0; i < sortedTiers.length; i++) {

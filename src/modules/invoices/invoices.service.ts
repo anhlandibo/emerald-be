@@ -491,18 +491,16 @@ export class InvoicesService {
     // Normalize period về đầu tháng (1st of month)
     const periodDate = this.normalizePeriodDate(period);
 
-    // Debug log
-    console.log(
-      `📌 [ADMIN] Creating invoice - Input period: ${period} -> Normalized: ${periodDate.toISOString()}`,
-    );
-
-    // Kiểm tra apartment tồn tại
+    // Kiểm tra apartment tồn tại và active
     const apartment = await this.apartmentRepository.findOne({
-      where: { id: apartmentId },
+      where: { id: apartmentId, isActive: true },
     });
 
     if (!apartment) {
-      throw new HttpException('Không tìm thấy căn hộ', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'Không tìm thấy căn hộ hoặc căn hộ đã bị xóa',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // Kiểm tra đã tồn tại hóa đơn cho kỳ này chưa
@@ -622,6 +620,18 @@ export class InvoicesService {
 
     if (!resident) {
       throw new HttpException('Không tìm thấy cư dân', HttpStatus.NOT_FOUND);
+    }
+
+    // Check apartment exists and is active
+    const apartment = await this.apartmentRepository.findOne({
+      where: { id: apartmentId, isActive: true },
+    });
+
+    if (!apartment) {
+      throw new HttpException(
+        'Không tìm thấy căn hộ hoặc căn hộ đã bị xóa',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const apartmentResident = await this.apartmentResidentRepository.findOne({

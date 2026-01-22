@@ -8,6 +8,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { ApartmentType } from '../enums/apartment-type.enum';
+import { ApartmentStatus } from '../enums/apartment-status.enum';
 import { Block } from '../../blocks/entities/block.entity';
 import { ApartmentResident } from './apartment-resident.entity';
 
@@ -34,6 +35,13 @@ export class Apartment {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   area: number;
+
+  @Column({
+    type: 'varchar',
+    default: ApartmentStatus.VACANT,
+    nullable: false,
+  })
+  status: ApartmentStatus;
 
   @OneToMany(
     () => ApartmentResident,

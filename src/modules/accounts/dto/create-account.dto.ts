@@ -7,6 +7,7 @@ import {
   MinLength,
   IsBoolean,
   IsOptional,
+  Matches,
 } from 'class-validator';
 import { UserRole } from '../enums/user-role.enum';
 
@@ -22,11 +23,15 @@ export class CreateAccountDto {
   @ApiProperty({
     example: 'StrongPassword123!',
     description: 'The password of the account',
-    minLength: 6,
+    minLength: 8,
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
+    message:
+      'Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số hoặc ký tự đặc biệt',
+  })
   password: string;
 
   @ApiProperty({

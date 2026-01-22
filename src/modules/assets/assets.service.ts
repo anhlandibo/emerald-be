@@ -12,11 +12,11 @@ import { Asset } from './entities/asset.entity';
 import { AssetType } from '../asset-types/entities/asset-type.entity';
 import { Block } from '../blocks/entities/block.entity';
 import { MaintenanceTicket } from '../maintenance-tickets/entities/maintenance-ticket.entity';
+import { TicketStatus } from '../maintenance-tickets/enums/ticket-status.enum';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { QueryAssetDto } from './dto/query-asset.dto';
 import { AssetStatus } from './enums/asset-status.enum';
-import { TicketStatus } from '../maintenance-tickets/enums/ticket-status.enum';
 import { plainToInstance } from 'class-transformer';
 import { TicketHistoryItemDto } from '../maintenance-tickets/dto/ticket-history-item.dto';
 
@@ -420,6 +420,22 @@ export class AssetsService {
       );
     }
 
+    // Check if asset has active maintenance tickets
+    const activeTicketsCount = await this.ticketRepository.count({
+      where: {
+        assetId: id,
+        status: In([TicketStatus.PENDING, TicketStatus.IN_PROGRESS]),
+        isActive: true,
+      },
+    });
+
+    if (activeTicketsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa tài sản đang có ${activeTicketsCount} tickets đang xử lý`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Soft delete
     asset.isActive = false;
     await this.assetRepository.save(asset);
@@ -436,6 +452,22 @@ export class AssetsService {
       throw new HttpException(
         'Không tìm thấy tài sản nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if any of these assets have active maintenance tickets
+    const activeTicketsCount = await this.ticketRepository.count({
+      where: {
+        assetId: In(ids),
+        status: In([TicketStatus.PENDING, TicketStatus.IN_PROGRESS]),
+        isActive: true,
+      },
+    });
+
+    if (activeTicketsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa các tài sản đang có ${activeTicketsCount} tickets đang xử lý`,
+        HttpStatus.BAD_REQUEST,
       );
     }
 

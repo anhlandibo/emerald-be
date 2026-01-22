@@ -80,23 +80,7 @@ export class VNPayService {
     const hmac = crypto.createHmac('sha512', this.hashSecret);
     const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
 
-    // Debug logging
-    const isValid = secureHash === signed;
-    if (!isValid) {
-      console.log('[VNPay Debug] Signature verification failed');
-      console.log(
-        '[VNPay] Hash Secret:',
-        this.hashSecret?.substring(0, 10) + '...',
-      );
-      console.log(
-        '[VNPay] Received Hash:',
-        secureHash?.substring(0, 20) + '...',
-      );
-      console.log('[VNPay] Calculated Hash:', signed?.substring(0, 20) + '...');
-      console.log('[VNPay] Sign Data:', signData);
-      console.log('[VNPay] Params:', sortedParams);
-    }
-    return isValid;
+    return secureHash === signed;
   }
 
   private sortObject(obj: any): any {

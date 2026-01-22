@@ -7,8 +7,10 @@ import { Block } from '../blocks/entities/block.entity';
 import { Resident } from '../residents/entities/resident.entity';
 import { CreateApartmentDto } from './dto/create-apartment.dto';
 import { UpdateApartmentDto } from './dto/update-apartment.dto';
+import { UpdateApartmentStatusDto } from './dto/update-apartment-status.dto';
 import { QueryApartmentDto } from './dto/query-apartment.dto';
 import { RelationshipType } from './enums/relationship-type.enum';
+import { ApartmentStatus } from './enums/apartment-status.enum';
 import { Gender } from '../residents/enums/gender.enum';
 
 @Injectable()
@@ -96,12 +98,21 @@ export class ApartmentsService {
     });
     await this.apartmentResidentRepository.save(ownerRelation);
 
+    // Auto-update status to OCCUPIED
+    savedApartment.status = ApartmentStatus.OCCUPIED;
+    await this.apartmentRepository.save(savedApartment);
+
     // Create other resident relationships
+    // Filter out owner to prevent duplicate entry
     if (
       createApartmentDto.residents &&
       createApartmentDto.residents.length > 0
     ) {
-      for (const residentDto of createApartmentDto.residents) {
+      const filteredResidents = createApartmentDto.residents.filter(
+        (residentDto) => residentDto.id !== createApartmentDto.owner_id,
+      );
+
+      for (const residentDto of filteredResidents) {
         const relation = this.apartmentResidentRepository.create({
           apartmentId: savedApartment.id,
           residentId: residentDto.id,
@@ -297,11 +308,16 @@ export class ApartmentsService {
       }
 
       // Add new residents
+      // Filter out owner to prevent duplicate entry
       if (
         updateApartmentDto.residents &&
         updateApartmentDto.residents.length > 0
       ) {
-        for (const residentDto of updateApartmentDto.residents) {
+        const filteredResidents = updateApartmentDto.residents.filter(
+          (residentDto) => residentDto.id !== updateApartmentDto.owner_id,
+        );
+
+        for (const residentDto of filteredResidents) {
           const resident = await this.residentRepository.findOne({
             where: { id: residentDto.id, isActive: true },
           });
@@ -321,6 +337,14 @@ export class ApartmentsService {
           await this.apartmentResidentRepository.save(relation);
         }
       }
+
+      // Auto-update apartment status based on resident count
+      const residentCount = await this.apartmentResidentRepository.count({
+        where: { apartmentId: id },
+      });
+      apartment.status =
+        residentCount > 0 ? ApartmentStatus.OCCUPIED : ApartmentStatus.VACANT;
+      await this.apartmentRepository.save(apartment);
     }
 
     return this.findOne(id);
@@ -409,5 +433,26 @@ export class ApartmentsService {
       { value: RelationshipType.CHILD, label: 'Con' },
       { value: RelationshipType.PARTNER, label: 'Bạn đời' },
     ];
+  }
+
+  /**
+   * [Issue #11] Update apartment status manually
+   */
+  async updateStatus(id: number, updateStatusDto: UpdateApartmentStatusDto) {
+    const apartment = await this.apartmentRepository.findOne({
+      where: { id, isActive: true },
+    });
+
+    if (!apartment) {
+      throw new HttpException('Căn hộ không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    apartment.status = updateStatusDto.status;
+    await this.apartmentRepository.save(apartment);
+
+    return {
+      message: 'Cập nhật trạng thái căn hộ thành công',
+      apartment: await this.findOne(id),
+    };
   }
 }

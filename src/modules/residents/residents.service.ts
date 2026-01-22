@@ -20,6 +20,7 @@ import { Booking } from '../bookings/entities/booking.entity';
 import { PaymentTransaction } from '../payments/entities/payment-transaction.entity';
 import { ApartmentResident } from '../apartments/entities/apartment-resident.entity';
 import { Apartment } from '../apartments/entities/apartment.entity';
+import { ApartmentStatus } from '../apartments/enums/apartment-status.enum';
 
 @Injectable()
 export class ResidentsService {
@@ -321,8 +322,32 @@ export class ResidentsService {
       );
     }
 
+    // Get affected apartment IDs before deletion
+    const affectedApartmentIds = [
+      ...new Set(apartmentResidents.map((ar) => ar.apartmentId)),
+    ];
+
     // Soft delete all residents
     await this.residentRepository.update({ id: In(ids) }, { isActive: false });
+
+    // Check if any apartments became empty and log warning
+    if (affectedApartmentIds.length > 0) {
+      for (const apartmentId of affectedApartmentIds) {
+        const remainingResidents = await this.apartmentResidentRepository.count(
+          {
+            where: { apartmentId },
+          },
+        );
+
+        if (remainingResidents === 0) {
+          // Optional: Auto-update apartment status to VACANT
+          await this.apartmentRepository.update(
+            { id: apartmentId },
+            { status: ApartmentStatus.VACANT },
+          );
+        }
+      }
+    }
 
     // Soft delete associated accounts
     const accountIds = residents

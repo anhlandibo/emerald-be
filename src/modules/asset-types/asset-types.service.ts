@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { AssetType } from './entities/asset-type.entity';
+import { Asset } from '../assets/entities/asset.entity';
 import { CreateAssetTypeDto } from './dto/create-asset-type.dto';
 import { UpdateAssetTypeDto } from './dto/update-asset-type.dto';
 import { QueryAssetTypeDto } from './dto/query-asset-type.dto';
@@ -17,6 +18,8 @@ export class AssetTypesService {
   constructor(
     @InjectRepository(AssetType)
     private readonly assetTypeRepository: Repository<AssetType>,
+    @InjectRepository(Asset)
+    private readonly assetRepository: Repository<Asset>,
   ) {}
 
   async create(createAssetTypeDto: CreateAssetTypeDto) {
@@ -111,6 +114,18 @@ export class AssetTypesService {
       );
     }
 
+    // Check if any assets are using this type
+    const assetsCount = await this.assetRepository.count({
+      where: { typeId: id, isActive: true },
+    });
+
+    if (assetsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa loại tài sản đang được sử dụng bởi ${assetsCount} tài sản`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Soft delete
     assetType.isActive = false;
     await this.assetTypeRepository.save(assetType);
@@ -127,6 +142,18 @@ export class AssetTypesService {
       throw new HttpException(
         'Không tìm thấy loại tài sản nào với các ID đã cung cấp',
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Check if any assets are using these types
+    const assetsCount = await this.assetRepository.count({
+      where: { typeId: In(ids), isActive: true },
+    });
+
+    if (assetsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa các loại tài sản đang được sử dụng bởi ${assetsCount} tài sản`,
+        HttpStatus.BAD_REQUEST,
       );
     }
 

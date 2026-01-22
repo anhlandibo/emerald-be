@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { ApartmentsService } from './apartments.service';
 import { CreateApartmentDto } from './dto/create-apartment.dto';
 import { UpdateApartmentDto } from './dto/update-apartment.dto';
+import { UpdateApartmentStatusDto } from './dto/update-apartment-status.dto';
 import { QueryApartmentDto } from './dto/query-apartment.dto';
 import { ApartmentListResponseDto } from './dto/apartment-list-response.dto';
 import { ApartmentDetailResponseDto } from './dto/apartment-detail-response.dto';
@@ -116,6 +117,29 @@ export class ApartmentsController {
     @Body() updateApartmentDto: UpdateApartmentDto,
   ) {
     return this.apartmentsService.update(id, updateApartmentDto);
+  }
+
+  @Patch(':id/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update apartment status' })
+  @ApiParam({
+    name: 'id',
+    description: 'Apartment ID',
+    type: Number,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Apartment status updated successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Apartment not found',
+  })
+  async updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateStatusDto: UpdateApartmentStatusDto,
+  ) {
+    return this.apartmentsService.updateStatus(id, updateStatusDto);
   }
 
   @Delete(':id')

@@ -249,12 +249,21 @@ export class BlocksService {
       );
     }
 
+    // Check if block has any apartments
+    const apartmentsCount = await this.apartmentRepository.count({
+      where: { blockId: id, isActive: true },
+    });
+
+    if (apartmentsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa block đang có ${apartmentsCount} căn hộ`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Soft delete
     block.isActive = false;
     await this.blockRepository.save(block);
-
-    // Also soft delete all apartments in this block
-    await this.apartmentRepository.update({ blockId: id }, { isActive: false });
 
     return { message: 'Xóa block thành công' };
   }
@@ -271,14 +280,20 @@ export class BlocksService {
       );
     }
 
+    // Check if any of these blocks have apartments
+    const apartmentsCount = await this.apartmentRepository.count({
+      where: { blockId: In(ids), isActive: true },
+    });
+
+    if (apartmentsCount > 0) {
+      throw new HttpException(
+        `Không thể xóa các block đang có ${apartmentsCount} căn hộ`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Soft delete all blocks
     await this.blockRepository.update({ id: In(ids) }, { isActive: false });
-
-    // Also soft delete all apartments in these blocks
-    await this.apartmentRepository.update(
-      { blockId: In(ids) },
-      { isActive: false },
-    );
 
     return {
       message: `Xóa thành công ${blocks.length} block(s)`,
