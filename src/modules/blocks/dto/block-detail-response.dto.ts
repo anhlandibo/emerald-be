@@ -22,6 +22,13 @@ class BlockApartmentDto {
   @ApiProperty({ example: 10 })
   @Expose()
   floor: number;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the apartment has residents',
+  })
+  @Expose()
+  hasResidents: boolean;
 }
 
 @Exclude()

@@ -138,7 +138,7 @@ export class BlocksService {
   async findOne(id: number) {
     const block = await this.blockRepository.findOne({
       where: { id, isActive: true },
-      relations: ['apartments'],
+      relations: ['apartments', 'apartments.apartmentResidents'],
     });
 
     if (!block) {
@@ -156,6 +156,8 @@ export class BlocksService {
         type: apt.type,
         area: apt.area,
         floor: apt.floor,
+        hasResidents:
+          apt.apartmentResidents && apt.apartmentResidents.length > 0,
       }));
 
     return {
