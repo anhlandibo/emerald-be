@@ -27,14 +27,26 @@ export class AllExceptionFilter implements ExceptionFilter {
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
-    let message =
-      exception instanceof HttpException
-        ? (exception.getResponse() as string)
-        : 'Internal server error';
 
-    if (exception instanceof BadRequestException)
-      message = (exception.getResponse() as PipeRespone).message[0];
-    const a = [];
+    let message: string;
+    if (exception instanceof HttpException) {
+      const exceptionResponse = exception.getResponse();
+
+      if (exception instanceof BadRequestException) {
+        const pipeResponse = exceptionResponse as PipeRespone;
+        message = Array.isArray(pipeResponse.message)
+          ? pipeResponse.message[0]
+          : pipeResponse.message as string;
+      } else {
+        // HttpException with string or object response
+        message = typeof exceptionResponse === 'string'
+          ? exceptionResponse
+          : (exceptionResponse as any).message || 'Internal server error';
+      }
+    } else {
+      message = 'Internal server error';
+    }
+
     response
       .status(status)
       .json(new ResponseDto(status, message, takenTime, request));

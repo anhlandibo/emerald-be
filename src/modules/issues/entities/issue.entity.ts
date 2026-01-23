@@ -105,5 +105,4 @@ export class Issue {
   @ManyToOne(() => MaintenanceTicket, { eager: false })
   @JoinColumn({ name: 'maintenance_ticket_id' })
   maintenanceTicket: MaintenanceTicket;
-  resident: any;
 }

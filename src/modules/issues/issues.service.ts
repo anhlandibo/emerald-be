@@ -473,7 +473,7 @@ export class IssuesService {
   async assignToTechnicianDepartment(id: number): Promise<IssueResponseDto> {
     const issue = await this.issueRepository.findOne({
       where: { id, isActive: true },
-      relations: ['resident', 'resident.account'],
+      relations: ['reporter', 'reporter.account', 'block'],
     });
 
     if (!issue) {
@@ -521,13 +521,13 @@ export class IssuesService {
         await this.systemNotificationsService.sendSystemNotification(
           {
             title: '🔧 Phản ánh mới được chuyển đến bộ phận kỹ thuật',
-            content: `Phản ánh "${issue.title}" từ cư dân ${issue.resident?.account?.fullName || 'N/A'} đã được chuyển tiếp. Vui lòng kiểm tra và xử lý.`,
+            content: `Phản ánh "${issue.title}" từ cư dân ${issue.reporter?.fullName || 'N/A'} đã được chuyển tiếp. Vui lòng kiểm tra và xử lý.`,
             type: SystemNotificationType.INFO,
             metadata: {
               issueId: updatedIssue.id,
               issueType: issue.type,
               issueStatus: issue.status,
-              residentName: issue.resident?.account?.fullName || 'N/A',
+              residentName: issue.reporter?.fullName || 'N/A',
               blockName: issue.block?.name || 'N/A',
             },
             actionUrl: `/issues/${updatedIssue.id}`,
