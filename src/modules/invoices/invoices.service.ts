@@ -1026,11 +1026,12 @@ export class InvoicesService {
       // Calculate if all meter readings are verified
       const meterReadingsVerified = meterReadings.length > 0;
 
-      result.push({
-        ...invoice,
-        meterReadings,
-        meterReadingsVerified,
-      });
+      result.push(
+        Object.assign(invoice, {
+          meterReadings,
+          meterReadingsVerified,
+        }),
+      );
     }
 
     return result;
@@ -1084,10 +1085,7 @@ export class InvoicesService {
       }
     }
 
-    return {
-      ...invoice,
-      meterReadings,
-    };
+    return Object.assign(invoice, { meterReadings });
   }
 
   /**
