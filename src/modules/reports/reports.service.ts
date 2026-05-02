@@ -306,8 +306,8 @@ export class ReportsService {
     });
 
     return Array.from(chartData.values()).sort(
-  (a, b) => new Date(a.label).getTime() - new Date(b.label).getTime(),
-);
+      (a, b) => new Date(a.label).getTime() - new Date(b.label).getTime(),
+    );
   }
 
   /**

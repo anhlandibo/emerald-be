@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  BeforeInsert,
 } from 'typeorm';
 import { InvoiceStatus } from '../enums/invoice-status.enum';
 import { Apartment } from '../../apartments/entities/apartment.entity';
@@ -83,12 +84,6 @@ export class Invoice {
   @Column({
     type: 'date',
     nullable: false,
-    default: () => {
-      // Mặc định due date = 15 ngày sau khi tạo
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 15);
-      return dueDate;
-    },
     name: 'due_date',
   })
   dueDate: Date;
@@ -104,4 +99,13 @@ export class Invoice {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @BeforeInsert()
+  setDueDate() {
+    if (!this.dueDate) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 15);
+      this.dueDate = dueDate;
+    }
+  }
 }
