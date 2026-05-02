@@ -36,12 +36,13 @@ export class AllExceptionFilter implements ExceptionFilter {
         const pipeResponse = exceptionResponse as PipeRespone;
         message = Array.isArray(pipeResponse.message)
           ? pipeResponse.message[0]
-          : pipeResponse.message as string;
+          : (pipeResponse.message as string);
       } else {
         // HttpException with string or object response
-        message = typeof exceptionResponse === 'string'
-          ? exceptionResponse
-          : (exceptionResponse as any).message || 'Internal server error';
+        message =
+          typeof exceptionResponse === 'string'
+            ? exceptionResponse
+            : (exceptionResponse as any).message || 'Internal server error';
       }
     } else {
       message = 'Internal server error';
