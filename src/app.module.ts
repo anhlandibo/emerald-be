@@ -30,6 +30,7 @@ import { StartTimingMiddleware } from './middlewares/start-timing.middleware';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SocketsModule } from './modules/sockets/sockets.module';
 import { SystemNotificationsModule } from './modules/system-notifications/system-notifications.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { SystemNotificationsModule } from './modules/system-notifications/system
     PaymentsModule,
     SocketsModule,
     SystemNotificationsModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],
