@@ -11,6 +11,8 @@ import { Account } from './entities/account.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { QueryAccountDto } from './dto/query-account.dto';
+import { ToggleActiveDto } from './dto/toggle-active.dto';
+import { UserRole } from './enums/user-role.enum';
 
 @Injectable()
 export class AccountsService {
@@ -118,6 +120,38 @@ export class AccountsService {
       );
     }
     account.isActive = true;
+    return this.accountRepository.save(account);
+  }
+
+  //ADD
+  async toggleActive(id: number, isActive: boolean): Promise<Account> {
+    // Dùng findOne không filter isActive để tìm được cả inactive accounts
+    const account = await this.accountRepository.findOne({ where: { id } });
+    if (!account) {
+      throw new HttpException(
+        `Tài khoản với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Ngăn ADMIN tự deactivate chính mình (cần truyền currentUserId từ controller)
+    account.isActive = isActive;
+    return this.accountRepository.save(account);
+
+    // ℹ️ JWT invalidation là tự động:
+    // JwtStrategy.validate() kiểm tra isActive=true mỗi request
+    // → account bị deactivate sẽ nhận 401 ngay lập tức ở request tiếp theo
+  }
+
+  async assignRole(id: number, role: UserRole): Promise<Account> {
+    const account = await this.accountRepository.findOne({ where: { id } });
+    if (!account) {
+      throw new HttpException(
+        `Tài khoản với ID ${id} không tồn tại`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    account.role = role;
     return this.accountRepository.save(account);
   }
 }

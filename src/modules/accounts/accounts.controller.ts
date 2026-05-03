@@ -14,7 +14,13 @@ import {
   ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -27,6 +33,9 @@ import { Roles } from 'src/decorators/role.decorator';
 import { UserRole } from './enums/user-role.enum';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+import { ToggleActiveDto } from './dto/toggle-active.dto';
+import { AssignRoleDto } from './dto/assign-role.dto';
 
 @ApiTags('Accounts')
 @Controller('accounts')
@@ -176,6 +185,49 @@ export class AccountsController {
   })
   async restore(@Param('id', ParseIntPipe) id: number) {
     const account = await this.accountsService.restore(id);
+    return plainToInstance(AccountResponseDto, account);
+  }
+
+  // ADD
+  @Patch(':id/active')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Activate or deactivate an account (UC31)',
+    description:
+      'Deactivating sets isActive=false. JWT is stateless — the account will receive 401 on their very next API request because JwtStrategy checks isActive on every call.',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({ status: 200, type: AccountResponseDto })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  async toggleActive(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ToggleActiveDto,
+  ) {
+    const account = await this.accountsService.toggleActive(id, dto.isActive);
+    return plainToInstance(AccountResponseDto, account);
+  }
+
+  @Patch(':id/role')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Assign a new role to an account (UC31)',
+    description:
+      "Role change takes effect on the user's next login (new JWT will carry updated role).",
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({ status: 200, type: AccountResponseDto })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  async assignRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignRoleDto,
+  ) {
+    const account = await this.accountsService.assignRole(id, dto.role);
     return plainToInstance(AccountResponseDto, account);
   }
 }

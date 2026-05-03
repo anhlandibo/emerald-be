@@ -22,6 +22,14 @@ import { Resident } from '../residents/entities/resident.entity';
 import { SystemNotificationsService } from '../system-notifications/system-notifications.service';
 import { SystemNotificationType } from 'src/modules/system-notifications/entities/system-notification.entity';
 
+type InvoiceWithReadings = Omit<Invoice, 'setDueDate'> & {
+  meterReadings: MeterReading[];
+  meterReadingsVerified: boolean;
+};
+type InvoiceDetailResponse = Omit<Invoice, 'setDueDate'> & {
+  meterReadings: any[];
+};
+
 @Injectable()
 export class InvoicesService {
   // VAT rates by fee type/name
@@ -915,12 +923,10 @@ export class InvoicesService {
    * Filter by apartments and pagination
    * Returns invoices with meter readings and verification status
    */
-  async findClientCreatedInvoices(queryDto: QueryInvoiceDto): Promise<
-    (Invoice & {
-      meterReadings: MeterReading[];
-      meterReadingsVerified: boolean;
-    })[]
-  > {
+
+  async findClientCreatedInvoices(
+    queryDto: QueryInvoiceDto,
+  ): Promise<InvoiceWithReadings[]> {
     const { page = 1, limit = 10, apartmentId, status, period } = queryDto;
 
     // Query to get invoice IDs that have client-created meter readings
@@ -981,10 +987,7 @@ export class InvoicesService {
     });
 
     // For each invoice, fetch its meter readings
-    const result: (Invoice & {
-      meterReadings: MeterReading[];
-      meterReadingsVerified: boolean;
-    })[] = [];
+    const result: InvoiceWithReadings[] = [];
 
     for (const invoice of invoices) {
       const meterReadings = await this.meterReadingRepository
@@ -1039,7 +1042,7 @@ export class InvoicesService {
   /**
    * Lấy chi tiết 1 hóa đơn kèm meter readings
    */
-  async findOne(id: number): Promise<Invoice & { meterReadings: any[] }> {
+  async findOne(id: number): Promise<InvoiceDetailResponse> {
     const invoice = await this.invoiceRepository.findOne({
       where: { id },
       relations: ['invoiceDetails', 'invoiceDetails.feeType', 'apartment'],

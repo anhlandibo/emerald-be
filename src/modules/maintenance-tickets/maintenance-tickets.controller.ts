@@ -1,3 +1,4 @@
+import { Multer } from 'multer';
 import {
   Controller,
   Get,
@@ -242,9 +243,9 @@ export class MaintenanceTicketsController {
       { name: 'video', maxCount: 1 },
     ]),
   )
-  @Roles(UserRole.ADMIN, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS)
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: '[ADMIN, TECHNICIAN] Hoàn tất sự cố' })
+  @ApiOperation({ summary: '[ADMIN, OPERATIONS] Hoàn tất sự cố' })
   @ApiParam({
     name: 'id',
     description: 'Maintenance Ticket ID',
@@ -284,8 +285,8 @@ export class MaintenanceTicketsController {
 
   @Post('scheduled/:id/complete')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.ADMIN, UserRole.TECHNICIAN)
-  @ApiOperation({ summary: '[ADMIN, TECHNICIAN] Hoàn tất bảo trì định kỳ' })
+  @Roles(UserRole.ADMIN, UserRole.OPERATIONS)
+  @ApiOperation({ summary: '[ADMIN, OPERATIONS] Hoàn tất bảo trì định kỳ' })
   @ApiParam({
     name: 'id',
     description: 'Maintenance Ticket ID',

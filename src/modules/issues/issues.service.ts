@@ -105,8 +105,8 @@ export class IssuesService {
       .leftJoinAndSelect('issue.block', 'block')
       .where('issue.isActive = :isActive', { isActive: true });
 
-    // Role-based filtering: Technician only sees assigned issues
-    if (role === UserRole.TECHNICIAN) {
+    // Role-based filtering: operator only sees assigned issues
+    if (role === UserRole.OPERATIONS) {
       queryBuilder.andWhere(
         'issue.assignedToTechnicianDepartment = :assigned',
         {
@@ -510,7 +510,7 @@ export class IssuesService {
     try {
       // Lấy danh sách tất cả kỹ thuật viên đang active
       const technicians = await this.accountsService.findAll({
-        role: UserRole.TECHNICIAN,
+        role: UserRole.OPERATIONS,
         isActive: true,
       });
 
