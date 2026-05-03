@@ -31,6 +31,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SocketsModule } from './modules/sockets/sockets.module';
 import { SystemNotificationsModule } from './modules/system-notifications/system-notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { PermissionsModule } from './modules/permission/permissions.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AuditModule } from './modules/audit/audit.module';
     SocketsModule,
     SystemNotificationsModule,
     AuditModule,
+    PermissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
