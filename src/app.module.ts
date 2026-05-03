@@ -32,6 +32,7 @@ import { SocketsModule } from './modules/sockets/sockets.module';
 import { SystemNotificationsModule } from './modules/system-notifications/system-notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { PermissionsModule } from './modules/permission/permissions.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { PermissionsModule } from './modules/permission/permissions.module';
     SystemNotificationsModule,
     AuditModule,
     PermissionsModule,
+    BackupModule,
   ],
   controllers: [AppController],
   providers: [AppService],
