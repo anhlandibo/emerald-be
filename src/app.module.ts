@@ -31,12 +31,13 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SocketsModule } from './modules/sockets/sockets.module';
 import { SystemNotificationsModule } from './modules/system-notifications/system-notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
-import { PermissionsModule } from './modules/permission/permissions.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { SharedModule } from './modules/shared/shared.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    SharedModule,
     CloudinaryModule,
     SupabaseStorageModule,
     MailerModule,
@@ -67,7 +68,6 @@ import { BackupModule } from './modules/backup/backup.module';
     SocketsModule,
     SystemNotificationsModule,
     AuditModule,
-    PermissionsModule,
     BackupModule,
   ],
   controllers: [AppController],
